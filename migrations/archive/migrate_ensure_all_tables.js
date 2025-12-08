@@ -78,6 +78,22 @@ async function migrateEnsureAllTables() {
           min_search_results INT DEFAULT 10 COMMENT 'Minimum search results before querying Shopee API',
           min_commission_rate DECIMAL(5,2) DEFAULT 10.00 COMMENT 'Minimum commission rate percentage for Shopee search',
           min_rating_star DECIMAL(2,1) DEFAULT 4.5 COMMENT 'Minimum rating star for Shopee search',
+          site_url VARCHAR(255) DEFAULT 'https://shonra.com' COMMENT 'Website URL for SEO',
+          sitemap_url VARCHAR(255) DEFAULT 'https://shonra.com/sitemap.xml' COMMENT 'Sitemap XML location',
+          meta_description TEXT NULL COMMENT 'Default meta description for SEO',
+          meta_keywords TEXT NULL COMMENT 'Default meta keywords (comma-separated)',
+          meta_title_template VARCHAR(255) DEFAULT '%s | SHONRA' COMMENT 'Title template (%s will be replaced)',
+          og_image_url VARCHAR(500) NULL COMMENT 'Open Graph image URL (1200x630px recommended)',
+          og_title VARCHAR(255) NULL COMMENT 'Open Graph title (optional, uses default if empty)',
+          og_description TEXT NULL COMMENT 'Open Graph description (optional, uses meta_description if empty)',
+          twitter_handle VARCHAR(100) DEFAULT '@shonra' COMMENT 'Twitter account handle',
+          google_verification_code VARCHAR(100) NULL COMMENT 'Google Search Console verification code',
+          bing_verification_code VARCHAR(100) NULL COMMENT 'Bing Webmaster Tools verification code',
+          enable_ai_seo BOOLEAN DEFAULT FALSE COMMENT 'Enable AI SEO features',
+          gemini_api_key VARCHAR(255) NULL COMMENT 'Google Gemini API Key (stored in database, not env)',
+          ai_seo_language VARCHAR(10) DEFAULT 'th' COMMENT 'Default language for AI SEO (th/en)',
+          canonical_url VARCHAR(255) NULL COMMENT 'Canonical URL (optional, uses site_url if empty)',
+          robots_meta VARCHAR(100) DEFAULT 'index, follow' COMMENT 'Robots meta tag value',
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )
@@ -92,6 +108,52 @@ async function migrateEnsureAllTables() {
     } else {
       console.log('⏭️  settings table already exists');
       skippedCount++;
+      
+      // Check and add missing columns if table exists
+      const missingColumns = [
+        { name: 'enable_ai_seo', definition: "BOOLEAN DEFAULT FALSE COMMENT 'Enable AI SEO features'" },
+        { name: 'gemini_api_key', definition: "VARCHAR(255) NULL COMMENT 'Google Gemini API Key (stored in database, not env)'" },
+        { name: 'ai_seo_language', definition: "VARCHAR(10) DEFAULT 'th' COMMENT 'Default language for AI SEO (th/en)'" },
+        { name: 'canonical_url', definition: "VARCHAR(255) NULL COMMENT 'Canonical URL (optional, uses site_url if empty)'" },
+        { name: 'robots_meta', definition: "VARCHAR(100) DEFAULT 'index, follow' COMMENT 'Robots meta tag value'" },
+        { name: 'site_url', definition: "VARCHAR(255) DEFAULT 'https://shonra.com' COMMENT 'Website URL for SEO'" },
+        { name: 'sitemap_url', definition: "VARCHAR(255) DEFAULT 'https://shonra.com/sitemap.xml' COMMENT 'Sitemap XML location'" },
+        { name: 'meta_description', definition: "TEXT NULL COMMENT 'Default meta description for SEO'" },
+        { name: 'meta_keywords', definition: "TEXT NULL COMMENT 'Default meta keywords (comma-separated)'" },
+        { name: 'meta_title_template', definition: "VARCHAR(255) DEFAULT '%s | SHONRA' COMMENT 'Title template (%s will be replaced)'" },
+        { name: 'og_image_url', definition: "VARCHAR(500) NULL COMMENT 'Open Graph image URL (1200x630px recommended)'" },
+        { name: 'og_title', definition: "VARCHAR(255) NULL COMMENT 'Open Graph title (optional, uses default if empty)'" },
+        { name: 'og_description', definition: "TEXT NULL COMMENT 'Open Graph description (optional, uses meta_description if empty)'" },
+        { name: 'twitter_handle', definition: "VARCHAR(100) DEFAULT '@shonra' COMMENT 'Twitter account handle'" },
+        { name: 'google_verification_code', definition: "VARCHAR(100) NULL COMMENT 'Google Search Console verification code'" },
+        { name: 'bing_verification_code', definition: "VARCHAR(100) NULL COMMENT 'Bing Webmaster Tools verification code'" }
+      ];
+      
+      for (const column of missingColumns) {
+        try {
+          const checkResult = await executeQuery(`
+            SELECT COLUMN_NAME 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'settings' 
+            AND COLUMN_NAME = ?
+          `, [column.name]);
+          
+          // Handle both lowercase and uppercase column names (MySQL version differences)
+          const hasColumn = checkResult.success && checkResult.data && checkResult.data.length > 0 && 
+            (checkResult.data[0].COLUMN_NAME || checkResult.data[0].column_name);
+          
+          if (!hasColumn) {
+            await executeQuery(`ALTER TABLE settings ADD COLUMN ${column.name} ${column.definition}`);
+            console.log(`✅ Added missing column: ${column.name} to settings table`);
+          }
+        } catch (error) {
+          // Column might already exist or other error, skip
+          if (!error.message.includes('Duplicate column name')) {
+            console.log(`⏭️  Skipped adding column ${column.name}: ${error.message}`);
+          }
+        }
+      }
     }
 
     // 3. Create categories table
