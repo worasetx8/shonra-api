@@ -24,21 +24,21 @@ async function migrateInsertData() {
 
     console.log('📦 Inserting data...\n');
 
-    // 1. Insert Roles
+    // 1. Insert Roles (using REPLACE INTO to ensure fresh data even if run multiple times)
     console.log('📝 Inserting roles...');
     await executeQuery(`
-      INSERT IGNORE INTO roles (id, name, description, created_at, updated_at) VALUES
+      REPLACE INTO roles (id, name, description, created_at, updated_at) VALUES
       (1, 'Super Admin', 'Full access to all features', '2025-11-23 10:07:40', '2025-11-23 10:07:40'),
       (2, 'Admin', 'Can manage content and users', '2025-11-23 10:07:40', '2025-11-23 10:07:40'),
       (3, 'Editor', 'Can manage content', '2025-11-23 10:07:40', '2025-11-23 10:07:40'),
       (4, 'Viewer', 'Read-only access', '2025-11-23 10:07:40', '2025-11-23 10:07:40')
     `);
-    console.log('✅ Roles inserted');
+    console.log('✅ Roles inserted (or replaced if existed)');
 
-    // 2. Insert Permissions
+    // 2. Insert Permissions (using REPLACE INTO to ensure fresh data)
     console.log('📝 Inserting permissions...');
     await executeQuery(`
-      INSERT IGNORE INTO permissions (id, name, slug, description, group_name, created_at) VALUES
+      REPLACE INTO permissions (id, name, slug, description, group_name, created_at) VALUES
       (1, 'View Products', 'view_products', NULL, 'Products', '2025-11-23 10:07:40'),
       (2, 'Create Products', 'create_products', NULL, 'Products', '2025-11-23 10:07:40'),
       (3, 'Edit Products', 'edit_products', NULL, 'Products', '2025-11-23 10:07:40'),
@@ -68,24 +68,24 @@ async function migrateInsertData() {
       (27, 'Edit Roles', 'edit_roles', NULL, 'Roles', '2025-11-23 10:07:40'),
       (28, 'Delete Roles', 'delete_roles', NULL, 'Roles', '2025-11-23 10:07:40')
     `);
-    console.log('✅ Permissions inserted');
+    console.log('✅ Permissions inserted (or replaced if existed)');
 
-    // 3. Insert Role-Permission Mappings
+    // 3. Insert Role-Permission Mappings (using REPLACE INTO)
     console.log('📝 Inserting role permissions...');
     await executeQuery(`
-      INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES
+      REPLACE INTO role_permissions (role_id, permission_id) VALUES
       (1,1),(2,1),(3,1),(4,1),(1,2),(2,2),(3,2),(1,3),(2,3),(1,4),(2,4),(1,5),(2,5),(3,5),
       (1,6),(2,6),(3,6),(1,7),(2,7),(1,8),(2,8),(1,9),(2,9),(3,9),(1,10),(2,10),(3,10),
       (1,11),(2,11),(1,12),(2,12),(1,13),(2,13),(3,13),(4,13),(1,14),(2,14),(3,14),(1,15),(2,15),
       (1,16),(2,16),(1,17),(1,18),(1,19),(1,20),(1,21),(2,21),(1,22),(2,22),(1,23),(2,23),
       (1,24),(2,24),(1,25),(2,25),(1,26),(2,26),(1,27),(2,27),(1,28),(2,28)
     `);
-    console.log('✅ Role permissions inserted');
+    console.log('✅ Role permissions inserted (or replaced if existed)');
 
-    // 4. Insert Categories
+    // 4. Insert Categories (using REPLACE INTO)
     console.log('📝 Inserting categories...');
     await executeQuery(`
-      INSERT IGNORE INTO categories (id, name, is_active, created_at, updated_at) VALUES
+      REPLACE INTO categories (id, name, is_active, created_at, updated_at) VALUES
       (7, 'Health & Beauty', 1, '2025-11-23 04:16:53', '2025-11-23 04:16:53'),
       (8, 'Electronics', 1, '2025-11-23 04:18:19', '2025-11-30 16:22:32'),
       (9, 'Fashion & Accessories', 1, '2025-11-23 04:18:42', '2025-11-23 04:18:42'),
@@ -94,50 +94,50 @@ async function migrateInsertData() {
       (12, 'Toys & Pets', 1, '2025-11-23 04:19:56', '2025-11-23 04:19:56'),
       (14, 'Food & Beverage', 1, '2025-11-29 11:01:04', '2025-12-07 14:55:51')
     `);
-    console.log('✅ Categories inserted');
+    console.log('✅ Categories inserted (or replaced if existed)');
 
-    // 5. Insert Tags
+    // 5. Insert Tags (using REPLACE INTO)
     console.log('📝 Inserting tags...');
     await executeQuery(`
-      INSERT IGNORE INTO tags (id, name, is_active, created_at, updated_at) VALUES
+      REPLACE INTO tags (id, name, is_active, created_at, updated_at) VALUES
       (3, 'Skincare', 1, '2025-11-23 04:54:18', '2025-11-23 04:54:18'),
       (4, 'Makeup', 1, '2025-11-23 04:54:58', '2025-11-23 04:54:58')
     `);
-    console.log('✅ Tags inserted');
+    console.log('✅ Tags inserted (or replaced if existed)');
 
-    // 6. Insert Banner Positions
+    // 6. Insert Banner Positions (using REPLACE INTO)
     console.log('📝 Inserting banner positions...');
     await executeQuery(`
-      INSERT IGNORE INTO banner_positions (id, name, width, height, is_active, created_at, updated_at) VALUES
+      REPLACE INTO banner_positions (id, name, width, height, is_active, created_at, updated_at) VALUES
       (1, 'Homepage Top Banner', 1920, 600, 1, '2025-11-23 05:46:27', '2025-11-23 05:46:27'),
       (4, 'Banner Ads', 800, 800, 1, '2025-11-23 05:57:49', '2025-11-23 05:57:49'),
       (5, 'Flash Sale Banner', 1200, 240, 1, '2025-11-29 06:36:47', '2025-11-29 06:36:47'),
       (6, 'Banner Popup', 500, 500, 1, '2025-11-29 11:17:10', '2025-11-29 11:17:10')
     `);
-    console.log('✅ Banner positions inserted');
+    console.log('✅ Banner positions inserted (or replaced if existed)');
 
-    // 7. Insert Banner Campaigns
+    // 7. Insert Banner Campaigns (using REPLACE INTO)
     console.log('📝 Inserting banner campaigns...');
     await executeQuery(`
-      INSERT IGNORE INTO banner_campaigns (id, name, start_time, end_time, is_active, created_at, updated_at) VALUES
+      REPLACE INTO banner_campaigns (id, name, start_time, end_time, is_active, created_at, updated_at) VALUES
       (3, 'Black Friday', '2025-11-22 09:50:00', '2025-12-01 23:59:00', 0, '2025-11-23 05:50:03', '2025-12-07 02:54:20')
     `);
-    console.log('✅ Banner campaigns inserted');
+    console.log('✅ Banner campaigns inserted (or replaced if existed)');
 
-    // 8. Insert Banners
+    // 8. Insert Banners (using REPLACE INTO)
     console.log('📝 Inserting banners...');
     await executeQuery(`
-      INSERT IGNORE INTO banners (id, position_id, campaign_id, image_url, target_url, alt_text, title, description, sort_order, open_new_tab, start_time, end_time, is_active, created_at, updated_at) VALUES
+      REPLACE INTO banners (id, position_id, campaign_id, image_url, target_url, alt_text, title, description, sort_order, open_new_tab, start_time, end_time, is_active, created_at, updated_at) VALUES
       (6, 5, NULL, '/api/uploads/banners/banner-1765093162698-1765093162707-660513297.jpg', 'https://s.shopee.co.th/9fDRryHKav', '', '', '', 0, 1, NULL, NULL, 1, '2025-11-29 07:39:22', '2025-12-07 07:39:25'),
       (7, 6, NULL, '/api/uploads/banners/banner-1765079322112-1765079322117-886687148.jpg', 'https://shopee.co.th/-%E0%B8%AA%E0%B9%88%E0%B8%87%E0%B8%9F%E0%B8%A3%E0%B8%B5-Dr.JiLL-Advanced-Serum-%E0%B8%94%E0%B8%A3.%E0%B8%88%E0%B8%B4%E0%B8%A5-%E0%B8%AA%E0%B8%B9%E0%B8%95%E0%B8%A3%E0%B9%83%E0%B8%AB%E0%B8%A1%E0%B9%88-2-%E0%B8%82%E0%B8%A7%E0%B8%94-%E0%B8%82%E0%B8%99%E0%B8%B2%E0%B8%94-30-ml-%E0%B9%80%E0%B8%8B%E0%B8%A3%E0%B8%B1%E0%B9%88%E0%B8%A1%E0%B8%84%E0%B8%B8%E0%B8%93%E0%B8%AB%E0%B8%A1%E0%B8%AD-i.504643137.8987241599', '', '', '', 0, 1, NULL, NULL, 1, '2025-11-29 11:18:21', '2025-12-07 03:48:45'),
       (8, 6, NULL, '/api/uploads/banners/banner-1765079335640-1765079335645-735386248.jpg', 'https://shopee.co.th/', '', '', '', 1, 1, NULL, NULL, 1, '2025-11-29 11:41:46', '2025-12-07 03:48:59')
     `);
-    console.log('✅ Banners inserted');
+    console.log('✅ Banners inserted (or replaced if existed)');
 
-    // 9. Insert Product Tags
+    // 9. Insert Product Tags (using REPLACE INTO)
     console.log('📝 Inserting product tags...');
     await executeQuery(`
-      INSERT IGNORE INTO product_tags (product_item_id, tag_id, created_at) VALUES
+      REPLACE INTO product_tags (product_item_id, tag_id, created_at) VALUES
       ('19186110135', 3, '2025-11-23 14:26:11'),
       ('24547348074', 4, '2025-11-23 04:55:54'),
       ('25513287365', 3, '2025-11-23 04:54:30'),
@@ -145,7 +145,7 @@ async function migrateInsertData() {
       ('28025832420', 3, '2025-11-23 04:55:31'),
       ('28025832420', 4, '2025-11-23 04:55:53')
     `);
-    console.log('✅ Product tags inserted');
+    console.log('✅ Product tags inserted (or replaced if existed)');
 
     // Summary
     console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
