@@ -30,38 +30,71 @@ async function getGeminiApiKey() {
 
     // Fetch from database
     // First check if columns exist, if not return null (columns will be added by migration)
-    let result;
     try {
-      result = await executeQuery(`
+      // Check if columns exist first
+      const checkColumns = await executeQuery(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'settings' 
+        AND COLUMN_NAME IN ('enable_ai_seo', 'gemini_api_key')
+      `);
+      
+      // Handle both lowercase and uppercase column names (MySQL version differences)
+      const existingColumns = new Set(
+        (checkColumns.data || []).map(c => {
+          const colName = c.COLUMN_NAME || c.column_name;
+          return colName ? colName.toLowerCase() : null;
+        }).filter(Boolean)
+      );
+      
+      // If columns don't exist, return null (migration will add them)
+      if (!existingColumns.has('enable_ai_seo') || !existingColumns.has('gemini_api_key')) {
+        cachedApiKey = null;
+        lastCacheTime = now;
+        return null;
+      }
+      
+      // Columns exist, proceed with query
+      const result = await executeQuery(`
         SELECT enable_ai_seo, gemini_api_key 
         FROM settings 
         WHERE id = 1
       `);
-    } catch (error) {
-      // If columns don't exist yet, return null (migration will add them)
-      if (error.code === 'ER_BAD_FIELD_ERROR' || error.message.includes('Unknown column')) {
-        cachedApiKey = null;
-        lastCacheTime = now;
-        return null;
-      }
-      throw error;
-    }
 
-    if (result.success && result.data && result.data.length > 0) {
-      const settings = result.data[0];
+      if (result.success && result.data && result.data.length > 0) {
+        const settings = result.data[0];
+        
+        // Check if AI SEO is enabled
+        if (!settings.enable_ai_seo) {
+          cachedApiKey = null;
+          lastCacheTime = now;
+          return null;
+        }
+
+        // Return API key if available
+        const apiKey = settings.gemini_api_key || null;
+        cachedApiKey = apiKey;
+        lastCacheTime = now;
+        return apiKey;
+      }
       
-      // Check if AI SEO is enabled (handle case where column might not exist)
-      if (!settings.enable_ai_seo) {
+      // No settings found
+      cachedApiKey = null;
+      lastCacheTime = now;
+      return null;
+    } catch (error) {
+      // If any error occurs (including column not found), return null
+      // Migration will add columns later
+      if (error.code === 'ER_BAD_FIELD_ERROR' || 
+          error.message.includes('Unknown column') ||
+          error.code === 'ER_NO_SUCH_TABLE') {
         cachedApiKey = null;
         lastCacheTime = now;
         return null;
       }
-
-      // Return API key if available
-      const apiKey = settings.gemini_api_key || null;
-      cachedApiKey = apiKey;
-      lastCacheTime = now;
-      return apiKey;
+      // Re-throw other errors
+      throw error;
     }
 
     return null;

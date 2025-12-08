@@ -56,17 +56,66 @@ async function migrateAddIndexes() {
     let skipCount = 0;
     let errorCount = 0;
 
-    // Define all indexes to create
+    // Define all indexes to create (matching actual database structure)
     const indexes = [
-      // shopee_products indexes
+      // shopee_products indexes (from actual database)
       {
-        name: 'idx_shopee_products_status',
+        name: 'idx_item_id',
+        table: 'shopee_products',
+        columns: ['item_id'],
+        description: 'Index on item_id column'
+      },
+      {
+        name: 'idx_shop_id',
+        table: 'shopee_products',
+        columns: ['shop_id'],
+        description: 'Index on shop_id column'
+      },
+      {
+        name: 'idx_status',
         table: 'shopee_products',
         columns: ['status'],
         description: 'Index on status column'
       },
       {
-        name: 'idx_shopee_products_category_id',
+        name: 'idx_commission',
+        table: 'shopee_products',
+        columns: ['seller_commission_rate'],
+        description: 'Index on seller_commission_rate column'
+      },
+      {
+        name: 'idx_created_at',
+        table: 'shopee_products',
+        columns: ['created_at'],
+        description: 'Index on created_at column'
+      },
+      {
+        name: 'idx_updated_at',
+        table: 'shopee_products',
+        columns: ['updated_at'],
+        description: 'Index on updated_at column'
+      },
+      {
+        name: 'idx_product_name',
+        table: 'shopee_products',
+        columns: ['product_name(100)'],
+        description: 'Index on product_name column (prefix length 100)',
+        isPrefix: true
+      },
+      {
+        name: 'idx_is_flash_sale',
+        table: 'shopee_products',
+        columns: ['is_flash_sale'],
+        description: 'Index on is_flash_sale column'
+      },
+      {
+        name: 'idx_shopee_products_status',
+        table: 'shopee_products',
+        columns: ['status'],
+        description: 'Index on status column (duplicate name but exists in DB)'
+      },
+      {
+        name: 'idx_shopee_products_category',
         table: 'shopee_products',
         columns: ['category_id'],
         description: 'Index on category_id column'
@@ -75,27 +124,27 @@ async function migrateAddIndexes() {
         name: 'idx_shopee_products_item_id',
         table: 'shopee_products',
         columns: ['item_id'],
-        description: 'Index on item_id column'
+        description: 'Index on item_id column (duplicate name but exists in DB)'
+      },
+      {
+        name: 'idx_shopee_products_is_flash_sale',
+        table: 'shopee_products',
+        columns: ['is_flash_sale'],
+        description: 'Index on is_flash_sale column (duplicate name but exists in DB)'
       },
       {
         name: 'idx_shopee_products_created_at',
         table: 'shopee_products',
         columns: ['created_at'],
-        description: 'Index on created_at column'
+        description: 'Index on created_at column (duplicate name but exists in DB)'
       },
+      // product_tags indexes (from actual database)
       {
-        name: 'idx_shopee_products_price',
-        table: 'shopee_products',
-        columns: ['price'],
-        description: 'Index on price column'
+        name: 'idx_product_item_id',
+        table: 'product_tags',
+        columns: ['product_item_id'],
+        description: 'Index on product_item_id column'
       },
-      {
-        name: 'idx_shopee_products_status_category',
-        table: 'shopee_products',
-        columns: ['status', 'category_id'],
-        description: 'Composite index on status and category_id'
-      },
-      // product_tags indexes
       {
         name: 'idx_product_tags_tag_id',
         table: 'product_tags',
@@ -106,7 +155,7 @@ async function migrateAddIndexes() {
         name: 'idx_product_tags_item_id',
         table: 'product_tags',
         columns: ['product_item_id'],
-        description: 'Index on product_item_id column'
+        description: 'Index on product_item_id column (duplicate name but exists in DB)'
       },
       {
         name: 'idx_product_tags_composite',
@@ -114,7 +163,13 @@ async function migrateAddIndexes() {
         columns: ['tag_id', 'product_item_id'],
         description: 'Composite index on tag_id and product_item_id'
       },
-      // banners indexes
+      // banners indexes (from actual database)
+      {
+        name: 'campaign_id',
+        table: 'banners',
+        columns: ['campaign_id'],
+        description: 'Index on campaign_id column (no idx_ prefix)'
+      },
       {
         name: 'idx_banners_position_id',
         table: 'banners',
@@ -128,50 +183,26 @@ async function migrateAddIndexes() {
         description: 'Index on is_active column'
       },
       {
-        name: 'idx_banners_campaign_id',
+        name: 'idx_banners_composite',
         table: 'banners',
-        columns: ['campaign_id'],
-        description: 'Index on campaign_id column'
+        columns: ['position_id', 'is_active'],
+        description: 'Composite index on position_id and is_active'
       },
-      {
-        name: 'idx_banners_time_range',
-        table: 'banners',
-        columns: ['start_time', 'end_time'],
-        description: 'Composite index on start_time and end_time'
-      },
-      {
-        name: 'idx_banners_active_time',
-        table: 'banners',
-        columns: ['is_active', 'start_time', 'end_time'],
-        description: 'Composite index on is_active, start_time, and end_time'
-      },
-      // categories indexes
+      // categories indexes (from actual database)
       {
         name: 'idx_categories_is_active',
         table: 'categories',
         columns: ['is_active'],
         description: 'Index on is_active column'
       },
-      {
-        name: 'idx_categories_name',
-        table: 'categories',
-        columns: ['name'],
-        description: 'Index on name column'
-      },
-      // tags indexes
+      // tags indexes (from actual database)
       {
         name: 'idx_tags_is_active',
         table: 'tags',
         columns: ['is_active'],
         description: 'Index on is_active column'
       },
-      {
-        name: 'idx_tags_name',
-        table: 'tags',
-        columns: ['name'],
-        description: 'Index on name column'
-      },
-      // admin_users indexes
+      // admin_users indexes (from actual database)
       {
         name: 'idx_admin_users_username',
         table: 'admin_users',
@@ -189,6 +220,26 @@ async function migrateAddIndexes() {
         table: 'admin_users',
         columns: ['status'],
         description: 'Index on status column'
+      },
+      // role_permissions indexes (from actual database)
+      {
+        name: 'permission_id',
+        table: 'role_permissions',
+        columns: ['permission_id'],
+        description: 'Index on permission_id column (no idx_ prefix)'
+      },
+      {
+        name: 'idx_role_id',
+        table: 'role_permissions',
+        columns: ['role_id'],
+        description: 'Index on role_id column'
+      },
+      // admin_activity_logs indexes (from actual database)
+      {
+        name: 'admin_user_id',
+        table: 'admin_activity_logs',
+        columns: ['admin_user_id'],
+        description: 'Index on admin_user_id column (no idx_ prefix)'
       }
     ];
 
@@ -218,12 +269,20 @@ async function migrateAddIndexes() {
           continue;
         }
 
-        // Check if columns exist
-        const placeholders = index.columns.map(() => '?').join(',');
+        // Check if columns exist (handle prefix length for TEXT columns)
+        const columnNames = index.columns.map(col => {
+          // Handle prefix length like 'product_name(100)'
+          if (col.includes('(')) {
+            return col.split('(')[0];
+          }
+          return col;
+        });
+        
+        const placeholders = columnNames.map(() => '?').join(',');
         const [columns] = await connection.execute(
           `SELECT COLUMN_NAME FROM information_schema.COLUMNS 
            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME IN (${placeholders})`,
-          [actualDbName, index.table, ...index.columns]
+          [actualDbName, index.table, ...columnNames]
         );
         
         // Handle both lowercase and uppercase column names (MySQL version differences)
@@ -231,7 +290,7 @@ async function migrateAddIndexes() {
           const colName = c.COLUMN_NAME || c.column_name;
           return colName ? colName.toLowerCase() : null;
         }).filter(Boolean));
-        const missingColumns = index.columns.filter(col => !existingColumns.has(col.toLowerCase()));
+        const missingColumns = columnNames.filter(col => !existingColumns.has(col.toLowerCase()));
         
         if (missingColumns.length > 0) {
           console.log(`⏭️  Column(s) [${missingColumns.join(', ')}] don't exist in '${index.table}', skipping index '${index.name}'...`);
@@ -240,7 +299,7 @@ async function migrateAddIndexes() {
           continue;
         }
 
-        // Create index
+        // Create index (preserve prefix length if specified)
         const columnsStr = index.columns.join(', ');
         const createIndexSQL = `CREATE INDEX ${index.name} ON ${index.table}(${columnsStr})`;
         
