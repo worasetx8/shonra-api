@@ -9,12 +9,15 @@ import { executeQuery } from '../../config/database.js';
  */
 
 // Helper function to execute query and check result
-async function executeAndCheck(query, tableName) {
+async function executeAndCheck(query, tableName, continueOnError = false) {
   const result = await executeQuery(query);
   if (!result.success) {
     const errorMsg = `Failed to create ${tableName} table: ${result.error}`;
     console.error(`❌ ${errorMsg}`);
-    throw new Error(errorMsg);
+    if (!continueOnError) {
+      throw new Error(errorMsg);
+    }
+    console.warn(`⚠️  Continuing despite error for ${tableName}...`);
   }
   return result;
 }
@@ -35,8 +38,16 @@ async function migrateEnsureAllTables() {
     
     console.log('📦 Creating all tables...\n');
 
-    // 1. Create admin_users table
-    await executeAndCheck(`
+    const tableCreationResults = [];
+    const requiredTables = [
+      'admin_users', 'settings', 'categories', 'tags', 'shopee_products',
+      'product_tags', 'category_keywords', 'banner_positions', 'banner_campaigns',
+      'banners', 'roles', 'permissions', 'role_permissions', 'admin_activity_logs', 'social_media'
+    ];
+
+    // 1. Create admin_users table (no dependencies)
+    try {
+      await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS admin_users (
         id INT AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(50) UNIQUE NOT NULL,
@@ -53,10 +64,16 @@ async function migrateEnsureAllTables() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
     `, 'admin_users');
-    console.log('✅ admin_users table');
+      console.log('✅ admin_users table');
+      tableCreationResults.push({ table: 'admin_users', success: true });
+    } catch (error) {
+      console.error(`❌ Failed to create admin_users: ${error.message}`);
+      tableCreationResults.push({ table: 'admin_users', success: false, error: error.message });
+    }
 
-    // 2. Create settings table
-    await executeAndCheck(`
+    // 2. Create settings table (no dependencies)
+    try {
+      await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS settings (
         id INT PRIMARY KEY DEFAULT 1,
         website_name VARCHAR(255),
@@ -94,10 +111,16 @@ async function migrateEnsureAllTables() {
       INSERT IGNORE INTO settings (id, website_name, maintenance_mode)
       VALUES (1, 'SHONRA', FALSE)
     `);
-    console.log('✅ settings table');
+      console.log('✅ settings table');
+      tableCreationResults.push({ table: 'settings', success: true });
+    } catch (error) {
+      console.error(`❌ Failed to create settings: ${error.message}`);
+      tableCreationResults.push({ table: 'settings', success: false, error: error.message });
+    }
 
-    // 3. Create categories table
-    await executeAndCheck(`
+    // 3. Create categories table (no dependencies)
+    try {
+      await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS categories (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL UNIQUE,
@@ -106,10 +129,16 @@ async function migrateEnsureAllTables() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
     `, 'categories');
-    console.log('✅ categories table');
+      console.log('✅ categories table');
+      tableCreationResults.push({ table: 'categories', success: true });
+    } catch (error) {
+      console.error(`❌ Failed to create categories: ${error.message}`);
+      tableCreationResults.push({ table: 'categories', success: false, error: error.message });
+    }
 
-    // 4. Create tags table
-    await executeAndCheck(`
+    // 4. Create tags table (no dependencies)
+    try {
+      await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS tags (
         id INT PRIMARY KEY AUTO_INCREMENT,
         name VARCHAR(255) NOT NULL UNIQUE,
@@ -118,10 +147,16 @@ async function migrateEnsureAllTables() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
     `, 'tags');
-    console.log('✅ tags table');
+      console.log('✅ tags table');
+      tableCreationResults.push({ table: 'tags', success: true });
+    } catch (error) {
+      console.error(`❌ Failed to create tags: ${error.message}`);
+      tableCreationResults.push({ table: 'tags', success: false, error: error.message });
+    }
 
-    // 5. Create shopee_products table
-    await executeAndCheck(`
+    // 5. Create shopee_products table (depends on categories)
+    try {
+      await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS shopee_products (
         id INT PRIMARY KEY AUTO_INCREMENT,
         item_id VARCHAR(50) UNIQUE NOT NULL,
@@ -154,10 +189,16 @@ async function migrateEnsureAllTables() {
         FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
       )
     `, 'shopee_products');
-    console.log('✅ shopee_products table');
+      console.log('✅ shopee_products table');
+      tableCreationResults.push({ table: 'shopee_products', success: true });
+    } catch (error) {
+      console.error(`❌ Failed to create shopee_products: ${error.message}`);
+      tableCreationResults.push({ table: 'shopee_products', success: false, error: error.message });
+    }
 
-    // 6. Create product_tags table
-    await executeAndCheck(`
+    // 6. Create product_tags table (depends on shopee_products, tags)
+    try {
+      await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS product_tags (
         product_item_id VARCHAR(50) NOT NULL,
         tag_id INT NOT NULL,
@@ -167,10 +208,16 @@ async function migrateEnsureAllTables() {
         FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
       )
     `, 'product_tags');
-    console.log('✅ product_tags table');
+      console.log('✅ product_tags table');
+      tableCreationResults.push({ table: 'product_tags', success: true });
+    } catch (error) {
+      console.error(`❌ Failed to create product_tags: ${error.message}`);
+      tableCreationResults.push({ table: 'product_tags', success: false, error: error.message });
+    }
 
-    // 7. Create category_keywords table
-    await executeAndCheck(`
+    // 7. Create category_keywords table (depends on categories)
+    try {
+      await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS category_keywords (
         id INT PRIMARY KEY AUTO_INCREMENT,
         category_id INT NOT NULL,
@@ -182,10 +229,16 @@ async function migrateEnsureAllTables() {
         UNIQUE KEY unique_category_keyword (category_id, keyword)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `, 'category_keywords');
-    console.log('✅ category_keywords table');
+      console.log('✅ category_keywords table');
+      tableCreationResults.push({ table: 'category_keywords', success: true });
+    } catch (error) {
+      console.error(`❌ Failed to create category_keywords: ${error.message}`);
+      tableCreationResults.push({ table: 'category_keywords', success: false, error: error.message });
+    }
 
-    // 8. Create banner_positions table
-    await executeAndCheck(`
+    // 8. Create banner_positions table (no dependencies)
+    try {
+      await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS banner_positions (
         id INT PRIMARY KEY AUTO_INCREMENT,
         name VARCHAR(255) NOT NULL UNIQUE,
@@ -196,10 +249,16 @@ async function migrateEnsureAllTables() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
     `, 'banner_positions');
-    console.log('✅ banner_positions table');
+      console.log('✅ banner_positions table');
+      tableCreationResults.push({ table: 'banner_positions', success: true });
+    } catch (error) {
+      console.error(`❌ Failed to create banner_positions: ${error.message}`);
+      tableCreationResults.push({ table: 'banner_positions', success: false, error: error.message });
+    }
 
-    // 9. Create banner_campaigns table
-    await executeAndCheck(`
+    // 9. Create banner_campaigns table (no dependencies)
+    try {
+      await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS banner_campaigns (
         id INT PRIMARY KEY AUTO_INCREMENT,
         name VARCHAR(255) NOT NULL,
@@ -210,10 +269,16 @@ async function migrateEnsureAllTables() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
     `, 'banner_campaigns');
-    console.log('✅ banner_campaigns table');
+      console.log('✅ banner_campaigns table');
+      tableCreationResults.push({ table: 'banner_campaigns', success: true });
+    } catch (error) {
+      console.error(`❌ Failed to create banner_campaigns: ${error.message}`);
+      tableCreationResults.push({ table: 'banner_campaigns', success: false, error: error.message });
+    }
 
-    // 10. Create banners table
-    await executeAndCheck(`
+    // 10. Create banners table (depends on banner_positions, banner_campaigns)
+    try {
+      await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS banners (
         id INT PRIMARY KEY AUTO_INCREMENT,
         position_id INT NOT NULL,
@@ -234,10 +299,16 @@ async function migrateEnsureAllTables() {
         FOREIGN KEY (campaign_id) REFERENCES banner_campaigns(id) ON DELETE SET NULL
       )
     `, 'banners');
-    console.log('✅ banners table');
+      console.log('✅ banners table');
+      tableCreationResults.push({ table: 'banners', success: true });
+    } catch (error) {
+      console.error(`❌ Failed to create banners: ${error.message}`);
+      tableCreationResults.push({ table: 'banners', success: false, error: error.message });
+    }
 
-    // 11. Create roles table
-    await executeAndCheck(`
+    // 11. Create roles table (no dependencies)
+    try {
+      await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS roles (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(50) UNIQUE NOT NULL,
@@ -246,10 +317,16 @@ async function migrateEnsureAllTables() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
     `, 'roles');
-    console.log('✅ roles table');
+      console.log('✅ roles table');
+      tableCreationResults.push({ table: 'roles', success: true });
+    } catch (error) {
+      console.error(`❌ Failed to create roles: ${error.message}`);
+      tableCreationResults.push({ table: 'roles', success: false, error: error.message });
+    }
 
-    // 12. Create permissions table
-    await executeAndCheck(`
+    // 12. Create permissions table (no dependencies)
+    try {
+      await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS permissions (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(100) NOT NULL,
@@ -259,10 +336,16 @@ async function migrateEnsureAllTables() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `, 'permissions');
-    console.log('✅ permissions table');
+      console.log('✅ permissions table');
+      tableCreationResults.push({ table: 'permissions', success: true });
+    } catch (error) {
+      console.error(`❌ Failed to create permissions: ${error.message}`);
+      tableCreationResults.push({ table: 'permissions', success: false, error: error.message });
+    }
 
-    // 13. Create role_permissions table
-    await executeAndCheck(`
+    // 13. Create role_permissions table (depends on roles, permissions)
+    try {
+      await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS role_permissions (
         role_id INT,
         permission_id INT,
@@ -271,10 +354,16 @@ async function migrateEnsureAllTables() {
         FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
       )
     `, 'role_permissions');
-    console.log('✅ role_permissions table');
+      console.log('✅ role_permissions table');
+      tableCreationResults.push({ table: 'role_permissions', success: true });
+    } catch (error) {
+      console.error(`❌ Failed to create role_permissions: ${error.message}`);
+      tableCreationResults.push({ table: 'role_permissions', success: false, error: error.message });
+    }
 
-    // 14. Create admin_activity_logs table
-    await executeAndCheck(`
+    // 14. Create admin_activity_logs table (depends on admin_users)
+    try {
+      await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS admin_activity_logs (
         id INT AUTO_INCREMENT PRIMARY KEY,
         admin_user_id INT,
@@ -285,10 +374,16 @@ async function migrateEnsureAllTables() {
         FOREIGN KEY (admin_user_id) REFERENCES admin_users(id) ON DELETE SET NULL
       )
     `, 'admin_activity_logs');
-    console.log('✅ admin_activity_logs table');
+      console.log('✅ admin_activity_logs table');
+      tableCreationResults.push({ table: 'admin_activity_logs', success: true });
+    } catch (error) {
+      console.error(`❌ Failed to create admin_activity_logs: ${error.message}`);
+      tableCreationResults.push({ table: 'admin_activity_logs', success: false, error: error.message });
+    }
 
-    // 15. Create social_media table
-    await executeAndCheck(`
+    // 15. Create social_media table (no dependencies)
+    try {
+      await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS social_media (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255),
@@ -300,7 +395,24 @@ async function migrateEnsureAllTables() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
     `, 'social_media');
-    console.log('✅ social_media table');
+      console.log('✅ social_media table');
+      tableCreationResults.push({ table: 'social_media', success: true });
+    } catch (error) {
+      console.error(`❌ Failed to create social_media: ${error.message}`);
+      tableCreationResults.push({ table: 'social_media', success: false, error: error.message });
+    }
+
+    // Show creation results summary
+    const successCount = tableCreationResults.filter(r => r.success).length;
+    const failCount = tableCreationResults.filter(r => !r.success).length;
+    
+    console.log(`\n📊 Creation Results: ${successCount} succeeded, ${failCount} failed`);
+    if (failCount > 0) {
+      console.log('\n❌ Failed tables:');
+      tableCreationResults.filter(r => !r.success).forEach(r => {
+        console.log(`   - ${r.table}: ${r.error}`);
+      });
+    }
 
     // Verify tables were created
     await new Promise(resolve => setTimeout(resolve, 100));
