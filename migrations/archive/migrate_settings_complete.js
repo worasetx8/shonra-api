@@ -128,7 +128,12 @@ async function migrateSettingsComplete() {
         
         const checkResult = await executeQuery(checkQuery, [column.name]);
         
-        if (checkResult.success && checkResult.data[0].count === 0) {
+        // Handle both lowercase and uppercase column names (MySQL version differences)
+        const count = checkResult.success && checkResult.data && checkResult.data[0] 
+          ? (checkResult.data[0].count || checkResult.data[0].COUNT || 0)
+          : 0;
+        
+        if (count === 0) {
           const alterQuery = `ALTER TABLE settings ADD COLUMN ${column.name} ${column.definition}`;
           await executeQuery(alterQuery);
           console.log(`✅ Added SEO column: ${column.name}`);
@@ -166,7 +171,11 @@ async function migrateSettingsComplete() {
         
         const checkResult = await executeQuery(checkQuery, [column.name]);
         
-        if (checkResult.success && (!checkResult.data || checkResult.data.length === 0)) {
+        // Handle both lowercase and uppercase column names (MySQL version differences)
+        const hasColumn = checkResult.success && checkResult.data && checkResult.data.length > 0 && 
+          (checkResult.data[0].COLUMN_NAME || checkResult.data[0].column_name);
+        
+        if (!hasColumn) {
           const alterQuery = `ALTER TABLE settings ADD COLUMN ${column.name} ${column.definition}`;
           await executeQuery(alterQuery);
           console.log(`✅ Added search settings column: ${column.name}`);
@@ -202,7 +211,12 @@ async function migrateSettingsComplete() {
       try {
         const checkResult = await executeQuery(`SHOW COLUMNS FROM settings LIKE '${column.name}'`);
         
-        if (checkResult.success && (!checkResult.data || checkResult.data.length === 0)) {
+        // Handle both lowercase and uppercase column names (MySQL version differences)
+        // SHOW COLUMNS returns Field, Type, Null, Key, Default, Extra
+        const hasColumn = checkResult.success && checkResult.data && checkResult.data.length > 0 && 
+          (checkResult.data[0].Field || checkResult.data[0].field);
+        
+        if (!hasColumn) {
           const afterColumn = column.name === 'logo_backend_url' ? 'AFTER logo_url' : 'AFTER logo_backend_url';
           await executeQuery(`ALTER TABLE settings ADD COLUMN ${column.name} ${column.definition} ${afterColumn}`);
           console.log(`✅ Added logo column: ${column.name}`);
@@ -236,7 +250,11 @@ async function migrateSettingsComplete() {
         AND COLUMN_NAME = 'maintenance_bypass_token'
       `);
 
-      if (!checkResult.success || !checkResult.data || checkResult.data.length === 0) {
+      // Handle both lowercase and uppercase column names (MySQL version differences)
+      const hasColumn = checkResult.success && checkResult.data && checkResult.data.length > 0 && 
+        (checkResult.data[0].COLUMN_NAME || checkResult.data[0].column_name);
+
+      if (!hasColumn) {
         await executeQuery(`
           ALTER TABLE settings 
           ADD COLUMN maintenance_bypass_token VARCHAR(255) DEFAULT NULL

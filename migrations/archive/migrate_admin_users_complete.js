@@ -94,7 +94,12 @@ async function migrateAdminUsersComplete() {
       try {
         const checkCols = await executeQuery(`SHOW COLUMNS FROM admin_users LIKE '${col.check}'`);
         
-        if (checkCols.success && checkCols.data.length === 0) {
+        // Handle both lowercase and uppercase column names (MySQL version differences)
+        // SHOW COLUMNS returns Field, Type, Null, Key, Default, Extra
+        const hasColumn = checkCols.success && checkCols.data && checkCols.data.length > 0 && 
+          (checkCols.data[0].Field || checkCols.data[0].field);
+        
+        if (!hasColumn) {
           await executeQuery(col.alter);
           console.log(`✅ Added ${col.name} column(s) to admin_users table.`);
         } else {
@@ -114,9 +119,11 @@ async function migrateAdminUsersComplete() {
     try {
       // Check current password column definition
       const passwordCol = await executeQuery(`SHOW COLUMNS FROM admin_users WHERE Field = 'password'`);
-      if (passwordCol.success && passwordCol.data.length > 0) {
+      if (passwordCol.success && passwordCol.data && passwordCol.data.length > 0) {
         const colDef = passwordCol.data[0];
-        if (colDef.Null === 'NO') {
+        // Handle both lowercase and uppercase column names (MySQL version differences)
+        const isNotNull = (colDef.Null === 'NO' || colDef.null === 'NO');
+        if (isNotNull) {
           await executeQuery(`ALTER TABLE admin_users MODIFY COLUMN password VARCHAR(255) NULL`);
           console.log('✅ Made password column nullable.');
         } else {

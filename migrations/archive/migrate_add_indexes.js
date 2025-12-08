@@ -36,7 +36,8 @@ async function migrateAddIndexes() {
     // Get database connection info for logging
     const dbName = process.env.DB_NAME || "shopee_affiliate";
     const [currentDb] = await connection.execute("SELECT DATABASE() as db");
-    const actualDbName = currentDb[0].db;
+    // Handle both lowercase and uppercase column names (MySQL version differences)
+    const actualDbName = currentDb[0].db || currentDb[0].DB;
     console.log(`📊 Database: ${actualDbName}\n`);
 
     // Check existing tables
@@ -44,7 +45,11 @@ async function migrateAddIndexes() {
       `SELECT table_name FROM information_schema.tables WHERE table_schema = ?`,
       [actualDbName]
     );
-    const existingTables = new Set(tables.map(t => t.table_name.toLowerCase()));
+    // Handle both lowercase and uppercase column names (MySQL version differences)
+    const existingTables = new Set(tables.map(t => {
+      const tableName = t.table_name || t.TABLE_NAME;
+      return tableName ? tableName.toLowerCase() : null;
+    }).filter(Boolean));
     console.log(`📋 Found ${existingTables.size} tables in database\n`);
 
     let successCount = 0;
@@ -221,7 +226,11 @@ async function migrateAddIndexes() {
           [actualDbName, index.table, ...index.columns]
         );
         
-        const existingColumns = new Set(columns.map(c => c.COLUMN_NAME.toLowerCase()));
+        // Handle both lowercase and uppercase column names (MySQL version differences)
+        const existingColumns = new Set(columns.map(c => {
+          const colName = c.COLUMN_NAME || c.column_name;
+          return colName ? colName.toLowerCase() : null;
+        }).filter(Boolean));
         const missingColumns = index.columns.filter(col => !existingColumns.has(col.toLowerCase()));
         
         if (missingColumns.length > 0) {

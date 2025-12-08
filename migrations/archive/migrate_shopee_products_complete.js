@@ -18,7 +18,11 @@ async function migrateShopeeProductsComplete() {
       AND COLUMN_NAME = 'source'
     `);
     
-    if (checkColumn.success && checkColumn.data.length > 0) {
+    // Handle both lowercase and uppercase column names (MySQL version differences)
+    const hasColumn = checkColumn.success && checkColumn.data && checkColumn.data.length > 0 && 
+      (checkColumn.data[0].COLUMN_NAME || checkColumn.data[0].column_name);
+    
+    if (hasColumn) {
       console.log('✅ Column "source" already exists');
     } else {
       // Add source column
