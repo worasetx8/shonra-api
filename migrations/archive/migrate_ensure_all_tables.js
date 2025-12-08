@@ -81,20 +81,16 @@ async function migrateEnsureAllTables() {
         id INT AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(50) UNIQUE NOT NULL,
         password VARCHAR(255) NULL,
-        password_hash VARCHAR(255) NULL,
         email VARCHAR(100) NULL,
         full_name VARCHAR(100) NULL,
-        status ENUM('active', 'inactive') DEFAULT 'active',
+        active ENUM('active', 'inactive') DEFAULT 'active',
         role_id INT NULL,
-        failed_login_attempts INT DEFAULT 0,
-        locked_until TIMESTAMP NULL DEFAULT NULL,
-        last_login_at TIMESTAMP NULL DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         UNIQUE KEY unique_username (username),
         KEY idx_admin_users_username (username),
         KEY idx_admin_users_role_id (role_id),
-        KEY idx_admin_users_status (status),
+        KEY idx_admin_users_active (active),
         CONSTRAINT fk_user_role FOREIGN KEY (role_id) REFERENCES roles (id) ON DELETE SET NULL
       )
     `, 'admin_users');
@@ -158,11 +154,11 @@ async function migrateEnsureAllTables() {
       CREATE TABLE IF NOT EXISTS categories (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL UNIQUE,
-        is_active TINYINT(1) DEFAULT 1,
+        active ENUM('active', 'inactive') DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         UNIQUE KEY unique_name (name),
-        KEY idx_categories_is_active (is_active)
+        KEY idx_categories_active (active)
       )
     `, 'categories');
       console.log('✅ categories table');

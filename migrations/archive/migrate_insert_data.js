@@ -134,7 +134,10 @@ async function migrateInsertData() {
     `);
     console.log('✅ Banners inserted (or replaced if existed)');
 
-    // 9. Insert Product Tags (using REPLACE INTO)
+    // 9. Insert Product Tags (SKIP for now - will add when shopee_products are imported)
+    // Note: product_tags has FK to shopee_products.item_id - will fail if no products exist
+    // Uncomment and run manually after importing products from Shopee API
+    /*
     console.log('📝 Inserting product tags...');
     await executeQuery(`
       REPLACE INTO product_tags (product_item_id, tag_id, created_at) VALUES
@@ -146,6 +149,8 @@ async function migrateInsertData() {
       ('28025832420', 4, '2025-11-23 04:55:53')
     `);
     console.log('✅ Product tags inserted (or replaced if existed)');
+    */
+    console.log('⏭️  Skipping product tags (will add when products exist)');
 
     // Summary
     console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
