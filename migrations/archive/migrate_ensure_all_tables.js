@@ -37,7 +37,64 @@ async function migrateEnsureAllTables() {
     let createdCount = 0;
     let skippedCount = 0;
 
-    // 1. Create categories table
+    // 1. Create admin_users table (if not exists)
+    if (!existingTables.has('admin_users')) {
+      await executeQuery(`
+        CREATE TABLE IF NOT EXISTS admin_users (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          username VARCHAR(50) UNIQUE NOT NULL,
+          password VARCHAR(255) NULL,
+          password_hash VARCHAR(255) NULL,
+          role_id INT NULL,
+          full_name VARCHAR(100),
+          email VARCHAR(100),
+          status ENUM('active', 'inactive') DEFAULT 'active',
+          failed_login_attempts INT DEFAULT 0,
+          locked_until TIMESTAMP NULL,
+          last_login_at TIMESTAMP NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+      `);
+      console.log('✅ Created admin_users table');
+      createdCount++;
+    } else {
+      console.log('⏭️  admin_users table already exists');
+      skippedCount++;
+    }
+
+    // 2. Create settings table
+    if (!existingTables.has('settings')) {
+      await executeQuery(`
+        CREATE TABLE IF NOT EXISTS settings (
+          id INT PRIMARY KEY DEFAULT 1,
+          website_name VARCHAR(255),
+          logo_url LONGTEXT NULL,
+          logo_backend_url LONGTEXT NULL,
+          logo_client_url LONGTEXT NULL,
+          maintenance_mode BOOLEAN DEFAULT FALSE,
+          maintenance_bypass_token VARCHAR(255) DEFAULT NULL,
+          version VARCHAR(20) DEFAULT 'v1.0.0',
+          min_search_results INT DEFAULT 10 COMMENT 'Minimum search results before querying Shopee API',
+          min_commission_rate DECIMAL(5,2) DEFAULT 10.00 COMMENT 'Minimum commission rate percentage for Shopee search',
+          min_rating_star DECIMAL(2,1) DEFAULT 4.5 COMMENT 'Minimum rating star for Shopee search',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+      `);
+      // Initialize default settings
+      await executeQuery(`
+        INSERT IGNORE INTO settings (id, website_name, maintenance_mode)
+        VALUES (1, 'SHONRA', FALSE)
+      `);
+      console.log('✅ Created settings table');
+      createdCount++;
+    } else {
+      console.log('⏭️  settings table already exists');
+      skippedCount++;
+    }
+
+    // 3. Create categories table
     if (!existingTables.has('categories')) {
       await executeQuery(`
         CREATE TABLE IF NOT EXISTS categories (
@@ -55,7 +112,7 @@ async function migrateEnsureAllTables() {
       skippedCount++;
     }
 
-    // 2. Create tags table
+    // 4. Create tags table
     if (!existingTables.has('tags')) {
       await executeQuery(`
         CREATE TABLE IF NOT EXISTS tags (
@@ -73,7 +130,7 @@ async function migrateEnsureAllTables() {
       skippedCount++;
     }
 
-    // 3. Create shopee_products table (if not exists)
+    // 5. Create shopee_products table (if not exists)
     if (!existingTables.has('shopee_products')) {
       await executeQuery(`
         CREATE TABLE IF NOT EXISTS shopee_products (
@@ -115,7 +172,7 @@ async function migrateEnsureAllTables() {
       skippedCount++;
     }
 
-    // 4. Create product_tags table
+    // 6. Create product_tags table
     if (!existingTables.has('product_tags')) {
       await executeQuery(`
         CREATE TABLE IF NOT EXISTS product_tags (
@@ -134,7 +191,7 @@ async function migrateEnsureAllTables() {
       skippedCount++;
     }
 
-    // 5. Create category_keywords table
+    // 7. Create category_keywords table
     if (!existingTables.has('category_keywords')) {
       await executeQuery(`
         CREATE TABLE IF NOT EXISTS category_keywords (
@@ -155,7 +212,7 @@ async function migrateEnsureAllTables() {
       skippedCount++;
     }
 
-    // 6. Create banner_positions table
+    // 8. Create banner_positions table
     if (!existingTables.has('banner_positions')) {
       await executeQuery(`
         CREATE TABLE IF NOT EXISTS banner_positions (
@@ -175,7 +232,7 @@ async function migrateEnsureAllTables() {
       skippedCount++;
     }
 
-    // 7. Create banner_campaigns table
+    // 9. Create banner_campaigns table
     if (!existingTables.has('banner_campaigns')) {
       await executeQuery(`
         CREATE TABLE IF NOT EXISTS banner_campaigns (
@@ -195,7 +252,7 @@ async function migrateEnsureAllTables() {
       skippedCount++;
     }
 
-    // 8. Create banners table
+    // 10. Create banners table
     if (!existingTables.has('banners')) {
       await executeQuery(`
         CREATE TABLE IF NOT EXISTS banners (
@@ -225,7 +282,7 @@ async function migrateEnsureAllTables() {
       skippedCount++;
     }
 
-    // 9. Create roles table
+    // 11. Create roles table
     if (!existingTables.has('roles')) {
       await executeQuery(`
         CREATE TABLE IF NOT EXISTS roles (
@@ -243,7 +300,7 @@ async function migrateEnsureAllTables() {
       skippedCount++;
     }
 
-    // 10. Create permissions table
+    // 12. Create permissions table
     if (!existingTables.has('permissions')) {
       await executeQuery(`
         CREATE TABLE IF NOT EXISTS permissions (
@@ -262,7 +319,7 @@ async function migrateEnsureAllTables() {
       skippedCount++;
     }
 
-    // 11. Create role_permissions table
+    // 13. Create role_permissions table
     if (!existingTables.has('role_permissions')) {
       await executeQuery(`
         CREATE TABLE IF NOT EXISTS role_permissions (
@@ -280,7 +337,7 @@ async function migrateEnsureAllTables() {
       skippedCount++;
     }
 
-    // 12. Create admin_activity_logs table
+    // 14. Create admin_activity_logs table
     if (!existingTables.has('admin_activity_logs')) {
       await executeQuery(`
         CREATE TABLE IF NOT EXISTS admin_activity_logs (
@@ -300,7 +357,7 @@ async function migrateEnsureAllTables() {
       skippedCount++;
     }
 
-    // 13. Create social_media table
+    // 15. Create social_media table
     if (!existingTables.has('social_media')) {
       await executeQuery(`
         CREATE TABLE IF NOT EXISTS social_media (
