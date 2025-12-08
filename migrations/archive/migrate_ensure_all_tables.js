@@ -91,7 +91,6 @@ async function migrateEnsureAllTables() {
         last_login_at TIMESTAMP NULL DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
         UNIQUE KEY unique_username (username),
         KEY idx_admin_users_username (username),
         KEY idx_admin_users_role_id (role_id),
