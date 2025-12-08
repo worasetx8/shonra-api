@@ -40,6 +40,10 @@ async function migrateAddIndexes() {
     const actualDbName = currentDb[0].db || currentDb[0].DB;
     console.log(`📊 Database: ${actualDbName}\n`);
 
+    // Wait a bit to ensure tables created by previous migration are visible
+    // This helps with connection isolation issues
+    await new Promise(resolve => setTimeout(resolve, 200));
+
     // Check existing tables
     const [tables] = await connection.execute(
       `SELECT table_name FROM information_schema.tables WHERE table_schema = ?`,
@@ -50,7 +54,14 @@ async function migrateAddIndexes() {
       const tableName = t.table_name || t.TABLE_NAME;
       return tableName ? tableName.toLowerCase() : null;
     }).filter(Boolean));
-    console.log(`📋 Found ${existingTables.size} tables in database\n`);
+    console.log(`📋 Found ${existingTables.size} tables in database`);
+    
+    // List tables if found
+    if (existingTables.size > 0) {
+      console.log(`   📝 Tables: ${Array.from(existingTables).sort().join(', ')}\n`);
+    } else {
+      console.log(`   ⚠️  No tables found! This might indicate a connection or database issue.\n`);
+    }
 
     let successCount = 0;
     let skipCount = 0;

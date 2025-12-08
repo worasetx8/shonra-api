@@ -440,12 +440,45 @@ async function migrateEnsureAllTables() {
       skippedCount++;
     }
 
+    // Verify tables were created by checking again (with a small delay to ensure commit)
+    // Wait a bit to ensure all CREATE TABLE statements are committed
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    const verifyTablesResult = await executeQuery(
+      `SELECT table_name FROM information_schema.tables WHERE table_schema = ?`,
+      [actualDbName]
+    );
+    
+    const verifiedTables = new Set(
+      (verifyTablesResult.data || []).map(t => {
+        const tableName = t.table_name || t.TABLE_NAME;
+        return tableName ? tableName.toLowerCase() : null;
+      }).filter(Boolean)
+    );
+
     // Summary
     console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     console.log("📊 Table Creation Summary:");
     console.log(`   ✅ Created: ${createdCount} tables`);
     console.log(`   ⏭️  Skipped: ${skippedCount} tables (already exist)`);
+    console.log(`   📋 Verified: ${verifiedTables.size} tables exist in database`);
+    
+    // List all verified tables
+    if (verifiedTables.size > 0) {
+      console.log(`   📝 Tables: ${Array.from(verifiedTables).sort().join(', ')}`);
+    }
+    
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+
+    if (verifiedTables.size === 0 && createdCount > 0) {
+      console.warn("⚠️  WARNING: Tables were created but not found in verification!");
+      console.warn("   This might indicate a connection or database issue.");
+      console.warn(`   Database name used: ${actualDbName}`);
+      console.warn("   Please check database connection and permissions.");
+    } else if (verifiedTables.size === 0 && createdCount === 0 && skippedCount === 0) {
+      console.warn("⚠️  WARNING: No tables found in database after migration!");
+      console.warn("   This might indicate a connection or database issue.");
+    }
 
     console.log("🎉 Ensure all tables migration completed successfully!");
 
