@@ -24,19 +24,27 @@ async function executeAndCheck(query, tableName, continueOnError = false) {
 
 async function migrateEnsureAllTables() {
   try {
-    console.log('🚀 Starting ensure all tables migration...');
+    console.log('\n🚀 Starting ensure all tables migration...');
+    console.log('🔧 DEBUG: migrateEnsureAllTables function called');
 
     // Get database name
     const dbResult = await executeQuery("SELECT DATABASE() as db");
+    console.log('🔧 DEBUG: dbResult:', dbResult);
+    
+    if (!dbResult.success) {
+      console.error('❌ Failed to get database name:', dbResult.error);
+      throw new Error(`Failed to get database name: ${dbResult.error}`);
+    }
+    
     const actualDbName = dbResult.data && dbResult.data[0] 
       ? (dbResult.data[0].db || dbResult.data[0].DB || process.env.DB_NAME || "shopee_affiliate")
       : (process.env.DB_NAME || "shopee_affiliate");
-    console.log(`📊 Database: ${actualDbName}\n`);
+    console.log(`📊 Database: ${actualDbName}`);
 
     // Create all tables (CREATE TABLE IF NOT EXISTS will skip if exists)
     // This ensures all tables are created in one run, even if some already exist
     
-    console.log('📦 Creating all tables...\n');
+    console.log('\n📦 Creating all tables...\n');
 
     const tableCreationResults = [];
     const requiredTables = [
@@ -46,8 +54,9 @@ async function migrateEnsureAllTables() {
     ];
 
     // 1. Create admin_users table (no dependencies)
+    console.log('🔧 DEBUG: About to create admin_users table...');
     try {
-      await executeAndCheck(`
+      const result = await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS admin_users (
         id INT AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(50) UNIQUE NOT NULL,
@@ -64,10 +73,12 @@ async function migrateEnsureAllTables() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
     `, 'admin_users');
+      console.log('🔧 DEBUG: admin_users result:', result);
       console.log('✅ admin_users table');
       tableCreationResults.push({ table: 'admin_users', success: true });
     } catch (error) {
       console.error(`❌ Failed to create admin_users: ${error.message}`);
+      console.error(`❌ Error stack:`, error.stack);
       tableCreationResults.push({ table: 'admin_users', success: false, error: error.message });
     }
 
@@ -455,12 +466,16 @@ async function migrateEnsureAllTables() {
   }
 }
 
-// Only call process.exit if run directly (not imported)
-if (import.meta.url === `file://${process.argv[1]}`) {
-  migrateEnsureAllTables()
-    .then(() => process.exit(0))
-    .catch(() => process.exit(1));
-} else {
-  migrateEnsureAllTables();
-}
+// Always call the function when imported
+// The run-all-migrations.js will handle process.exit
+console.log('🔧 migrate_ensure_all_tables.js: About to call migrateEnsureAllTables()...');
+migrateEnsureAllTables()
+  .then(() => {
+    console.log('✅ migrate_ensure_all_tables.js: migrateEnsureAllTables() completed successfully');
+  })
+  .catch(error => {
+    console.error('❌ migrate_ensure_all_tables.js: Migration error:', error);
+    console.error('❌ Error stack:', error.stack);
+    throw error;
+  });
 
