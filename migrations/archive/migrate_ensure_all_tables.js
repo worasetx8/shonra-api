@@ -26,19 +26,32 @@ async function migrateEnsureAllTables() {
   try {
     console.log('\n🚀 Starting ensure all tables migration...');
     console.log('🔧 DEBUG: migrateEnsureAllTables function called');
+    console.log('🔧 DEBUG: executeQuery function:', typeof executeQuery);
 
     // Get database name
-    const dbResult = await executeQuery("SELECT DATABASE() as db");
-    console.log('🔧 DEBUG: dbResult:', dbResult);
-    
-    if (!dbResult.success) {
-      console.error('❌ Failed to get database name:', dbResult.error);
-      throw new Error(`Failed to get database name: ${dbResult.error}`);
+    console.log('🔧 DEBUG: About to call executeQuery for DATABASE()...');
+    let dbResult;
+    try {
+      dbResult = await executeQuery("SELECT DATABASE() as db");
+      console.log('🔧 DEBUG: dbResult received:', JSON.stringify(dbResult, null, 2));
+    } catch (error) {
+      console.error('❌ ERROR in executeQuery:', error);
+      console.error('❌ Error stack:', error.stack);
+      throw error;
     }
     
-    const actualDbName = dbResult.data && dbResult.data[0] 
-      ? (dbResult.data[0].db || dbResult.data[0].DB || process.env.DB_NAME || "shopee_affiliate")
-      : (process.env.DB_NAME || "shopee_affiliate");
+    if (!dbResult || !dbResult.success) {
+      const errorMsg = dbResult?.error || 'Unknown error';
+      console.error('❌ Failed to get database name:', errorMsg);
+      throw new Error(`Failed to get database name: ${errorMsg}`);
+    }
+    
+    if (!dbResult.data || !dbResult.data[0]) {
+      console.error('❌ dbResult.data is empty:', dbResult);
+      throw new Error('Database query returned no data');
+    }
+    
+    const actualDbName = dbResult.data[0].db || dbResult.data[0].DB || process.env.DB_NAME || "shopee_affiliate";
     console.log(`📊 Database: ${actualDbName}`);
 
     // Create all tables (CREATE TABLE IF NOT EXISTS will skip if exists)
@@ -469,13 +482,17 @@ async function migrateEnsureAllTables() {
 // Always call the function when imported
 // The run-all-migrations.js will handle process.exit
 console.log('🔧 migrate_ensure_all_tables.js: About to call migrateEnsureAllTables()...');
-migrateEnsureAllTables()
+const migrationPromise = migrateEnsureAllTables()
   .then(() => {
     console.log('✅ migrate_ensure_all_tables.js: migrateEnsureAllTables() completed successfully');
   })
   .catch(error => {
     console.error('❌ migrate_ensure_all_tables.js: Migration error:', error);
+    console.error('❌ Error message:', error.message);
     console.error('❌ Error stack:', error.stack);
     throw error;
   });
+
+// Export the promise so run-all-migrations.js can await it
+export default migrationPromise;
 

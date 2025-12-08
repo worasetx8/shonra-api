@@ -84,7 +84,15 @@ async function runAllMigrations() {
         
         // Import and execute migration
         // Migration files typically execute on import, so we just import them
-        await import(fileUrl);
+        const migrationModule = await import(fileUrl);
+        
+        // If the migration exports a promise, wait for it to complete
+        if (migrationModule.default && typeof migrationModule.default.then === 'function') {
+          await migrationModule.default;
+        }
+        
+        // Give migration a moment to complete any async operations
+        await new Promise(resolve => setTimeout(resolve, 100));
 
         console.log(`   ✅ ${file} completed successfully`);
         successCount++;
