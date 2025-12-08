@@ -29,16 +29,28 @@ async function getGeminiApiKey() {
     }
 
     // Fetch from database
-    const result = await executeQuery(`
-      SELECT enable_ai_seo, gemini_api_key 
-      FROM settings 
-      WHERE id = 1
-    `);
+    // First check if columns exist, if not return null (columns will be added by migration)
+    let result;
+    try {
+      result = await executeQuery(`
+        SELECT enable_ai_seo, gemini_api_key 
+        FROM settings 
+        WHERE id = 1
+      `);
+    } catch (error) {
+      // If columns don't exist yet, return null (migration will add them)
+      if (error.code === 'ER_BAD_FIELD_ERROR' || error.message.includes('Unknown column')) {
+        cachedApiKey = null;
+        lastCacheTime = now;
+        return null;
+      }
+      throw error;
+    }
 
-    if (result.success && result.data.length > 0) {
+    if (result.success && result.data && result.data.length > 0) {
       const settings = result.data[0];
       
-      // Check if AI SEO is enabled
+      // Check if AI SEO is enabled (handle case where column might not exist)
       if (!settings.enable_ai_seo) {
         cachedApiKey = null;
         lastCacheTime = now;
