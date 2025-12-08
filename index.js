@@ -60,21 +60,35 @@ if (isDevelopment) {
     SERVER_PORT: process.env.SERVER_PORT,
     NODE_ENV: process.env.NODE_ENV,
     CLIENT_URL: process.env.CLIENT_URL,
+    BACKEND_URL: process.env.BACKEND_URL,
     UsingPort: port
   });
 }
 
 // Middleware
-// CORS: Allow both Next.js client (3000) and Backend UI (5173)
-const allowedOrigins = process.env.CLIENT_URL 
-  ? [process.env.CLIENT_URL, "http://localhost:3000", "http://localhost:5173"]
-  : ["http://localhost:3000", "http://localhost:5173"];
+// CORS: Allow both Next.js client and Backend Admin UI
+const allowedOrigins = [];
+if (process.env.CLIENT_URL) {
+  allowedOrigins.push(process.env.CLIENT_URL);
+}
+if (process.env.BACKEND_URL) {
+  allowedOrigins.push(process.env.BACKEND_URL);
+}
+// Always allow localhost for development
+allowedOrigins.push("http://localhost:3000", "http://localhost:5173");
+
+// If no production URLs configured, use defaults for development
+if (allowedOrigins.length === 2) {
+  Logger.warn("No CLIENT_URL or BACKEND_URL configured. Using localhost only.");
+}
 
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) return callback(null, true);
+      
+      // Check if origin is in allowed list
       if (allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
       } else {
@@ -82,11 +96,14 @@ app.use(
         if (isDevelopment) {
           callback(null, true); // Allow all for development
         } else {
+          Logger.warn(`CORS blocked origin: ${origin}. Allowed origins: ${allowedOrigins.join(", ")}`);
           callback(new Error("Not allowed by CORS"), false); // Reject in production
         }
       }
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     // Additional security headers
     exposedHeaders: [],
     maxAge: 86400 // Cache preflight requests for 24 hours
