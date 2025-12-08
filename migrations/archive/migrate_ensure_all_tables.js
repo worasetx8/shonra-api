@@ -25,20 +25,9 @@ async function executeAndCheck(query, tableName, continueOnError = false) {
 async function migrateEnsureAllTables() {
   try {
     console.log('\n🚀 Starting ensure all tables migration...');
-    console.log('🔧 DEBUG: migrateEnsureAllTables function called');
-    console.log('🔧 DEBUG: executeQuery function:', typeof executeQuery);
 
     // Get database name
-    console.log('🔧 DEBUG: About to call executeQuery for DATABASE()...');
-    let dbResult;
-    try {
-      dbResult = await executeQuery("SELECT DATABASE() as db");
-      console.log('🔧 DEBUG: dbResult received:', JSON.stringify(dbResult, null, 2));
-    } catch (error) {
-      console.error('❌ ERROR in executeQuery:', error);
-      console.error('❌ Error stack:', error.stack);
-      throw error;
-    }
+    const dbResult = await executeQuery("SELECT DATABASE() as db");
     
     if (!dbResult || !dbResult.success) {
       const errorMsg = dbResult?.error || 'Unknown error';
@@ -67,9 +56,8 @@ async function migrateEnsureAllTables() {
     ];
 
     // 1. Create admin_users table (no dependencies)
-    console.log('🔧 DEBUG: About to create admin_users table...');
     try {
-      const result = await executeAndCheck(`
+      await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS admin_users (
         id INT AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(50) UNIQUE NOT NULL,
@@ -86,12 +74,10 @@ async function migrateEnsureAllTables() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
     `, 'admin_users');
-      console.log('🔧 DEBUG: admin_users result:', result);
       console.log('✅ admin_users table');
       tableCreationResults.push({ table: 'admin_users', success: true });
     } catch (error) {
       console.error(`❌ Failed to create admin_users: ${error.message}`);
-      console.error(`❌ Error stack:`, error.stack);
       tableCreationResults.push({ table: 'admin_users', success: false, error: error.message });
     }
 
@@ -481,15 +467,9 @@ async function migrateEnsureAllTables() {
 
 // Always call the function when imported
 // The run-all-migrations.js will handle process.exit
-console.log('🔧 migrate_ensure_all_tables.js: About to call migrateEnsureAllTables()...');
 const migrationPromise = migrateEnsureAllTables()
-  .then(() => {
-    console.log('✅ migrate_ensure_all_tables.js: migrateEnsureAllTables() completed successfully');
-  })
   .catch(error => {
-    console.error('❌ migrate_ensure_all_tables.js: Migration error:', error);
-    console.error('❌ Error message:', error.message);
-    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Migration error:', error);
     throw error;
   });
 
