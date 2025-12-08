@@ -4,6 +4,23 @@ async function migrate() {
   try {
     console.log("🚀 Starting category_keywords migration...");
 
+    // 0. Check if categories table exists first
+    const checkCategories = await executeQuery(`
+      SELECT COUNT(*) as count 
+      FROM information_schema.tables 
+      WHERE table_schema = DATABASE() 
+      AND table_name = 'categories'
+    `);
+    
+    const hasCategories = checkCategories.success && checkCategories.data && checkCategories.data[0] &&
+      (checkCategories.data[0].count > 0 || checkCategories.data[0].COUNT > 0);
+    
+    if (!hasCategories) {
+      console.log("⚠️  categories table doesn't exist yet. Skipping category_keywords migration.");
+      console.log("💡 Hint: migrate_ensure_all_tables.js should run first to create base tables.");
+      return;
+    }
+
     // 1. Create category_keywords table
     const createTable = `
       CREATE TABLE IF NOT EXISTS category_keywords (
@@ -17,8 +34,20 @@ async function migrate() {
         UNIQUE KEY unique_category_keyword (category_id, keyword)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `;
-    await executeQuery(createTable);
-    console.log("✅ Created category_keywords table");
+    
+    try {
+      await executeQuery(createTable);
+      console.log("✅ Created category_keywords table");
+    } catch (error) {
+      // If table already exists or FK error, that's okay
+      if (error.code === 'ER_FK_CANNOT_OPEN_PARENT' || 
+          error.message.includes("doesn't exist") ||
+          error.message.includes("already exists")) {
+        console.log("⏭️  category_keywords table creation skipped (may already exist or categories table missing)");
+      } else {
+        throw error;
+      }
+    }
 
     // 2. Get all active categories
     const categoriesResult = await executeQuery(

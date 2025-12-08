@@ -43,9 +43,16 @@ async function runAllMigrations() {
     const files = await readdir(archiveDir);
     
     // Filter only .js files and sort by name
+    // Ensure migrate_ensure_all_tables.js runs FIRST to create all base tables
     const migrationFiles = files
       .filter(file => file.endsWith('.js'))
-      .sort();
+      .sort((a, b) => {
+        // migrate_ensure_all_tables.js should always run first
+        if (a === 'migrate_ensure_all_tables.js') return -1;
+        if (b === 'migrate_ensure_all_tables.js') return 1;
+        // Otherwise sort alphabetically
+        return a.localeCompare(b);
+      });
 
     if (migrationFiles.length === 0) {
       console.log("⚠️  No migration files found in archive directory");
