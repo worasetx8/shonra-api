@@ -50,12 +50,31 @@ async function migrateEnsureAllTables() {
 
     const tableCreationResults = [];
     const requiredTables = [
-      'admin_users', 'settings', 'categories', 'tags', 'shopee_products',
+      'roles', 'permissions', 'admin_users', 'settings', 'categories', 'tags', 'shopee_products',
       'product_tags', 'category_keywords', 'banner_positions', 'banner_campaigns',
-      'banners', 'roles', 'permissions', 'role_permissions', 'admin_activity_logs', 'social_media'
+      'banners', 'role_permissions', 'admin_activity_logs', 'social_media'
     ];
 
-    // 1. Create admin_users table (no dependencies)
+    // 1. Create roles table FIRST (no dependencies - needed for admin_users FK)
+    try {
+      await executeAndCheck(`
+      CREATE TABLE IF NOT EXISTS roles (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(50) UNIQUE NOT NULL,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        KEY idx_roles_name (name)
+      )
+    `, 'roles');
+      console.log('✅ roles table');
+      tableCreationResults.push({ table: 'roles', success: true });
+    } catch (error) {
+      console.error(`❌ Failed to create roles: ${error.message}`);
+      tableCreationResults.push({ table: 'roles', success: false, error: error.message });
+    }
+
+    // 2. Create admin_users table (depends on roles)
     try {
       await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS admin_users (
@@ -63,15 +82,21 @@ async function migrateEnsureAllTables() {
         username VARCHAR(50) UNIQUE NOT NULL,
         password VARCHAR(255) NULL,
         password_hash VARCHAR(255) NULL,
-        role_id INT NULL,
-        full_name VARCHAR(100),
-        email VARCHAR(100),
+        email VARCHAR(100) NULL,
+        full_name VARCHAR(100) NULL,
         status ENUM('active', 'inactive') DEFAULT 'active',
+        role_id INT NULL,
         failed_login_attempts INT DEFAULT 0,
-        locked_until TIMESTAMP NULL,
-        last_login_at TIMESTAMP NULL,
+        locked_until TIMESTAMP NULL DEFAULT NULL,
+        last_login_at TIMESTAMP NULL DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY unique_username (username),
+        KEY idx_admin_users_username (username),
+        KEY idx_admin_users_role_id (role_id),
+        KEY idx_admin_users_status (status),
+        CONSTRAINT fk_user_role FOREIGN KEY (role_id) REFERENCES roles (id) ON DELETE SET NULL
       )
     `, 'admin_users');
       console.log('✅ admin_users table');
@@ -81,7 +106,7 @@ async function migrateEnsureAllTables() {
       tableCreationResults.push({ table: 'admin_users', success: false, error: error.message });
     }
 
-    // 2. Create settings table (no dependencies)
+    // 3. Create settings table (no dependencies)
     try {
       await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS settings (
@@ -128,15 +153,17 @@ async function migrateEnsureAllTables() {
       tableCreationResults.push({ table: 'settings', success: false, error: error.message });
     }
 
-    // 3. Create categories table (no dependencies)
+    // 4. Create categories table (no dependencies)
     try {
       await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS categories (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL UNIQUE,
-        is_active BOOLEAN DEFAULT TRUE,
+        is_active TINYINT(1) DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_name (name),
+        KEY idx_categories_is_active (is_active)
       )
     `, 'categories');
       console.log('✅ categories table');
@@ -146,15 +173,17 @@ async function migrateEnsureAllTables() {
       tableCreationResults.push({ table: 'categories', success: false, error: error.message });
     }
 
-    // 4. Create tags table (no dependencies)
+    // 5. Create tags table (no dependencies)
     try {
       await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS tags (
-        id INT PRIMARY KEY AUTO_INCREMENT,
+        id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL UNIQUE,
-        is_active BOOLEAN DEFAULT TRUE,
+        is_active TINYINT(1) DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_name (name),
+        KEY idx_tags_is_active (is_active)
       )
     `, 'tags');
       console.log('✅ tags table');
@@ -164,11 +193,11 @@ async function migrateEnsureAllTables() {
       tableCreationResults.push({ table: 'tags', success: false, error: error.message });
     }
 
-    // 5. Create shopee_products table (depends on categories)
+    // 6. Create shopee_products table (depends on categories)
     try {
       await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS shopee_products (
-        id INT PRIMARY KEY AUTO_INCREMENT,
+        id INT AUTO_INCREMENT PRIMARY KEY,
         item_id VARCHAR(50) UNIQUE NOT NULL,
         category_id INT DEFAULT NULL,
         product_name TEXT NOT NULL,
@@ -181,21 +210,25 @@ async function migrateEnsureAllTables() {
         seller_commission_rate DECIMAL(5,4),
         shopee_commission_rate DECIMAL(5,4),
         commission_amount DECIMAL(10,2),
-        image_url TEXT,
-        product_link TEXT,
-        offer_link TEXT,
+        image_url LONGTEXT,
+        product_link LONGTEXT,
+        offer_link LONGTEXT,
         rating_star DECIMAL(2,1),
         sales_count INT DEFAULT 0,
         discount_rate DECIMAL(5,2),
         period_start_time BIGINT,
         period_end_time BIGINT,
-        campaign_active BOOLEAN DEFAULT TRUE,
-        is_flash_sale BOOLEAN DEFAULT FALSE,
+        campaign_active TINYINT(1) DEFAULT 1,
+        is_flash_sale TINYINT(1) DEFAULT 0,
         status ENUM('active', 'inactive') DEFAULT 'active',
         source VARCHAR(20) DEFAULT 'backend' COMMENT 'frontend or backend',
-        notes TEXT,
+        notes LONGTEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_item_id (item_id),
+        KEY idx_shopee_products_category_id (category_id),
+        KEY idx_shopee_products_item_id (item_id),
+        KEY idx_shopee_products_status (status),
         FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
       )
     `, 'shopee_products');
@@ -206,7 +239,7 @@ async function migrateEnsureAllTables() {
       tableCreationResults.push({ table: 'shopee_products', success: false, error: error.message });
     }
 
-    // 6. Create product_tags table (depends on shopee_products, tags)
+    // 7. Create product_tags table (depends on shopee_products, tags)
     try {
       await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS product_tags (
@@ -214,8 +247,12 @@ async function migrateEnsureAllTables() {
         tag_id INT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (product_item_id, tag_id),
-        FOREIGN KEY (product_item_id) REFERENCES shopee_products(item_id) ON DELETE CASCADE,
-        FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+        KEY idx_product_item_id (product_item_id),
+        KEY idx_product_tags_tag_id (tag_id),
+        KEY idx_product_tags_item_id (product_item_id),
+        KEY idx_product_tags_composite (tag_id, product_item_id),
+        CONSTRAINT product_tags_ibfk_1 FOREIGN KEY (product_item_id) REFERENCES shopee_products(item_id) ON DELETE CASCADE,
+        CONSTRAINT product_tags_ibfk_2 FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
       )
     `, 'product_tags');
       console.log('✅ product_tags table');
@@ -225,18 +262,19 @@ async function migrateEnsureAllTables() {
       tableCreationResults.push({ table: 'product_tags', success: false, error: error.message });
     }
 
-    // 7. Create category_keywords table (depends on categories)
+    // 8. Create category_keywords table (depends on categories)
     try {
       await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS category_keywords (
-        id INT PRIMARY KEY AUTO_INCREMENT,
+        id INT AUTO_INCREMENT PRIMARY KEY,
         category_id INT NOT NULL,
         keyword VARCHAR(255) NOT NULL,
-        is_high_priority BOOLEAN DEFAULT FALSE,
+        is_high_priority TINYINT(1) DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE,
-        UNIQUE KEY unique_category_keyword (category_id, keyword)
+        UNIQUE KEY unique_category_keyword (category_id, keyword),
+        KEY idx_category_keywords_category_id (category_id),
+        FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `, 'category_keywords');
       console.log('✅ category_keywords table');
@@ -246,17 +284,19 @@ async function migrateEnsureAllTables() {
       tableCreationResults.push({ table: 'category_keywords', success: false, error: error.message });
     }
 
-    // 8. Create banner_positions table (no dependencies)
+    // 9. Create banner_positions table (no dependencies)
     try {
       await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS banner_positions (
-        id INT PRIMARY KEY AUTO_INCREMENT,
+        id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL UNIQUE,
         width INT NOT NULL,
         height INT NOT NULL,
-        is_active BOOLEAN DEFAULT TRUE,
+        is_active TINYINT(1) DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_name (name),
+        KEY idx_banner_positions_is_active (is_active)
       )
     `, 'banner_positions');
       console.log('✅ banner_positions table');
@@ -266,17 +306,19 @@ async function migrateEnsureAllTables() {
       tableCreationResults.push({ table: 'banner_positions', success: false, error: error.message });
     }
 
-    // 9. Create banner_campaigns table (no dependencies)
+    // 10. Create banner_campaigns table (no dependencies)
     try {
       await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS banner_campaigns (
-        id INT PRIMARY KEY AUTO_INCREMENT,
-        name VARCHAR(255) NOT NULL,
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL UNIQUE,
         start_time DATETIME NULL,
         end_time DATETIME NULL,
-        is_active BOOLEAN DEFAULT TRUE,
+        is_active TINYINT(1) DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_name (name),
+        KEY idx_banner_campaigns_is_active (is_active)
       )
     `, 'banner_campaigns');
       console.log('✅ banner_campaigns table');
@@ -286,27 +328,31 @@ async function migrateEnsureAllTables() {
       tableCreationResults.push({ table: 'banner_campaigns', success: false, error: error.message });
     }
 
-    // 10. Create banners table (depends on banner_positions, banner_campaigns)
+    // 11. Create banners table (depends on banner_positions, banner_campaigns)
     try {
       await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS banners (
-        id INT PRIMARY KEY AUTO_INCREMENT,
+        id INT AUTO_INCREMENT PRIMARY KEY,
         position_id INT NOT NULL,
         campaign_id INT DEFAULT NULL,
         image_url LONGTEXT NOT NULL,
-        target_url TEXT,
-        alt_text VARCHAR(255),
-        title VARCHAR(255),
-        description TEXT,
+        target_url LONGTEXT NULL,
+        alt_text VARCHAR(255) NULL,
+        title VARCHAR(255) NULL,
+        description LONGTEXT NULL,
         sort_order INT DEFAULT 0,
-        open_new_tab BOOLEAN DEFAULT FALSE,
+        open_new_tab TINYINT(1) DEFAULT 0,
         start_time DATETIME NULL,
         end_time DATETIME NULL,
-        is_active BOOLEAN DEFAULT TRUE,
+        is_active TINYINT(1) DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (position_id) REFERENCES banner_positions(id),
-        FOREIGN KEY (campaign_id) REFERENCES banner_campaigns(id) ON DELETE SET NULL
+        KEY idx_banners_position_id (position_id),
+        KEY idx_banners_campaign_id (campaign_id),
+        KEY idx_banners_is_active (is_active),
+        KEY idx_banners_composite (position_id, is_active),
+        CONSTRAINT banners_ibfk_1 FOREIGN KEY (position_id) REFERENCES banner_positions(id),
+        CONSTRAINT banners_ibfk_2 FOREIGN KEY (campaign_id) REFERENCES banner_campaigns(id) ON DELETE SET NULL
       )
     `, 'banners');
       console.log('✅ banners table');
@@ -324,7 +370,8 @@ async function migrateEnsureAllTables() {
         name VARCHAR(50) UNIQUE NOT NULL,
         description TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_name (name)
       )
     `, 'roles');
       console.log('✅ roles table');
@@ -334,16 +381,18 @@ async function migrateEnsureAllTables() {
       tableCreationResults.push({ table: 'roles', success: false, error: error.message });
     }
 
-    // 12. Create permissions table (no dependencies)
+    // 11. Create permissions table (no dependencies)
     try {
       await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS permissions (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(100) NOT NULL,
         slug VARCHAR(100) UNIQUE NOT NULL,
-        description TEXT,
-        group_name VARCHAR(50),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        description LONGTEXT NULL,
+        group_name VARCHAR(50) NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_slug (slug),
+        KEY idx_permissions_group_name (group_name)
       )
     `, 'permissions');
       console.log('✅ permissions table');
@@ -353,15 +402,17 @@ async function migrateEnsureAllTables() {
       tableCreationResults.push({ table: 'permissions', success: false, error: error.message });
     }
 
-    // 13. Create role_permissions table (depends on roles, permissions)
+    // 11. Create role_permissions table (depends on roles, permissions)
     try {
       await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS role_permissions (
-        role_id INT,
-        permission_id INT,
+        role_id INT NOT NULL,
+        permission_id INT NOT NULL,
         PRIMARY KEY (role_id, permission_id),
-        FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
-        FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
+        KEY idx_role_id (role_id),
+        KEY idx_permission_id (permission_id),
+        CONSTRAINT role_permissions_ibfk_1 FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+        CONSTRAINT role_permissions_ibfk_2 FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
       )
     `, 'role_permissions');
       console.log('✅ role_permissions table');
@@ -371,17 +422,19 @@ async function migrateEnsureAllTables() {
       tableCreationResults.push({ table: 'role_permissions', success: false, error: error.message });
     }
 
-    // 14. Create admin_activity_logs table (depends on admin_users)
+    // 11. Create admin_activity_logs table (depends on admin_users)
     try {
       await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS admin_activity_logs (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        admin_user_id INT,
+        admin_user_id INT DEFAULT NULL,
         action VARCHAR(255) NOT NULL,
-        details TEXT,
-        ip_address VARCHAR(45),
+        details LONGTEXT NULL,
+        ip_address VARCHAR(45) DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (admin_user_id) REFERENCES admin_users(id) ON DELETE SET NULL
+        KEY idx_admin_user_id (admin_user_id),
+        KEY idx_admin_activity_logs_created_at (created_at),
+        CONSTRAINT admin_activity_logs_ibfk_1 FOREIGN KEY (admin_user_id) REFERENCES admin_users(id) ON DELETE SET NULL
       )
     `, 'admin_activity_logs');
       console.log('✅ admin_activity_logs table');
@@ -391,18 +444,19 @@ async function migrateEnsureAllTables() {
       tableCreationResults.push({ table: 'admin_activity_logs', success: false, error: error.message });
     }
 
-    // 15. Create social_media table (no dependencies)
+    // 11. Create social_media table (no dependencies)
     try {
       await executeAndCheck(`
       CREATE TABLE IF NOT EXISTS social_media (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(255),
-        icon_url LONGTEXT,
-        url TEXT,
-        is_active BOOLEAN DEFAULT TRUE,
+        name VARCHAR(255) NULL,
+        icon_url LONGTEXT NULL,
+        url LONGTEXT NULL,
+        is_active TINYINT(1) DEFAULT 1,
         sort_order INT DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        KEY idx_social_media_is_active (is_active)
       )
     `, 'social_media');
       console.log('✅ social_media table');
