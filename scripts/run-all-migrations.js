@@ -42,14 +42,29 @@ async function runAllMigrations() {
     const archiveDir = path.join(__dirname, "..", "migrations", "archive");
     const files = await readdir(archiveDir);
     
-    // Filter only .js files and sort by name
-    // Ensure migrate_ensure_all_tables.js runs FIRST to create all base tables
+    // Filter only .js files and sort by explicit priority then alphabetically
+    // Priority order (lower index = run earlier):
+    // 1. migrate_ensure_all_tables.js (create tables)
+    // 2. migrate_insert_data.js (insert base data: categories, tags, roles...)
+    // 3. migrate_add_indexes.js (add indexes)
+    // 4. migrate_category_keywords.js (depends on categories existing and active)
+    const priority = [
+      'migrate_ensure_all_tables.js',
+      'migrate_insert_data.js',
+      'migrate_add_indexes.js',
+      'migrate_category_keywords.js'
+    ];
+
     const migrationFiles = files
       .filter(file => file.endsWith('.js'))
       .sort((a, b) => {
-        // migrate_ensure_all_tables.js should always run first
-        if (a === 'migrate_ensure_all_tables.js') return -1;
-        if (b === 'migrate_ensure_all_tables.js') return 1;
+        const ia = priority.indexOf(a);
+        const ib = priority.indexOf(b);
+        if (ia !== -1 || ib !== -1) {
+          if (ia === -1) return 1; // b has priority, a after
+          if (ib === -1) return -1; // a has priority, b after
+          if (ia !== ib) return ia - ib; // lower index first
+        }
         // Otherwise sort alphabetically
         return a.localeCompare(b);
       });
