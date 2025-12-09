@@ -181,6 +181,35 @@ app.get("/health", (req, res) => {
   });
 });
 
+// Database health check endpoint
+app.get("/api/health/db", async (req, res) => {
+  try {
+    const conn = await testConnection();
+    if (conn) {
+      res.status(200).json({
+        status: "connected",
+        database: process.env.DB_NAME,
+        host: process.env.DB_HOST,
+        port: process.env.DB_PORT,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        status: "disconnected",
+        database: process.env.DB_NAME,
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: error.message,
+      database: process.env.DB_NAME,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);

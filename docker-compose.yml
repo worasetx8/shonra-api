@@ -1,5 +1,4 @@
 version: '3.8'
-
 services:
   # Backend API Server - Express.js (API endpoints)
   backend-api:
@@ -7,13 +6,10 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: shonra-backend-api
-    image: shonra-backend-api:1.0.7
+    image: shonra-backend-api:1.0.0
     env_file:
       - stack.env
     restart: always
-    # Resource limits - Optimized for 2 cores, 8GB RAM
-    # For 4+ cores: Increase to 1 CPU, 1GB RAM
-    # For 8+ cores: Increase to 2 CPU, 2GB RAM
     deploy:
       resources:
         limits:
@@ -26,16 +22,7 @@ services:
       - '3002:3002'
     volumes:
       - server_uploads:/app/uploads
-    # Health check endpoint: http://localhost:3002/health
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3002/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
-      interval: 30s
-      timeout: 3s
-      start_period: 40s
-      retries: 3
-    # Note: In production, use nginx reverse proxy instead of exposing port directly
-
 volumes:
   server_uploads:
-    driver: local
+    external: true
 
