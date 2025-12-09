@@ -69,7 +69,7 @@ export const strictRateLimit = (options = {}) => {
   
   const {
     windowMs = 15 * 60 * 1000, // 15 minutes
-    maxRequests = isDevelopment ? 20 : 5, // More lenient in development (20) vs production (5)
+    maxRequests = isDevelopment ? 20 : 20, // Allow 20 requests per 15 minutes
     message = "Too many login attempts. Please try again later."
   } = options;
 
