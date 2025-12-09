@@ -10,13 +10,25 @@ import { validateRequest } from '../middleware/requestValidator.js';
 const router = express.Router();
 
 // Get allowed origins and referers from environment
-const allowedOrigins = process.env.CLIENT_URL 
-  ? [process.env.CLIENT_URL, "http://localhost:3000"]
-  : ["http://localhost:3000"];
+const allowedOrigins = [];
+if (process.env.CLIENT_URL) {
+  allowedOrigins.push(process.env.CLIENT_URL);
+}
+if (process.env.BACKEND_URL) {
+  allowedOrigins.push(process.env.BACKEND_URL);
+}
+// Always allow localhost for development
+allowedOrigins.push("http://localhost:3000", "http://localhost:5173");
 
-const allowedReferers = process.env.CLIENT_URL
-  ? [process.env.CLIENT_URL, "http://localhost:3000"]
-  : ["http://localhost:3000"];
+const allowedReferers = [];
+if (process.env.CLIENT_URL) {
+  allowedReferers.push(process.env.CLIENT_URL);
+}
+if (process.env.BACKEND_URL) {
+  allowedReferers.push(process.env.BACKEND_URL);
+}
+// Always allow localhost for development
+allowedReferers.push("http://localhost:3000", "http://localhost:5173");
 
 // Get global settings (public endpoint for client)
 // Apply rate limiting and request validation
