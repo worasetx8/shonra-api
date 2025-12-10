@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: shonra-backend-api
-    image: shonra-backend-api:1.0.0
+    image: shonra-backend-api:1.0.1
     env_file:
       - stack.env
     restart: always
@@ -22,7 +22,13 @@ services:
       - '3002:3002'
     volumes:
       - server_uploads:/app/uploads
+    networks:
+      - shonra-network
 volumes:
   server_uploads:
+    external: true
+
+networks:
+  shonra-network:
     external: true
 
