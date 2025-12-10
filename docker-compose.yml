@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: shonra-backend-api
-    image: shonra-backend-api:1.0.2
+    image: shonra-backend-api:1.0.3
     env_file:
       - stack.env
     restart: always
@@ -18,11 +18,22 @@ services:
         reservations:
           cpus: '0.25'
           memory: 512M
-    ports:
-      - '3002:3002'
+    # Expose port for internal network access (nginx-proxy)
+    expose:
+      - '3002'
+    # Optional: Map port to host for direct access (for debugging)
+    # Uncomment if you need direct access from host
+    # ports:
+    #   - '3002:3002'
     volumes:
       - server_uploads:/app/uploads
+    networks:
+      - shonra-network
 volumes:
   server_uploads:
+    external: true
+
+networks:
+  shonra-network:
     external: true
 
