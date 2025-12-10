@@ -20,9 +20,9 @@ export const rateLimiter = (options = {}) => {
 
   return (req, res, next) => {
     // Get client identifier (IP address or user ID)
-    const clientId = req.ip || req.connection.remoteAddress || 'unknown';
+    const clientId = req.ip || req.connection.remoteAddress || "unknown";
     const now = Date.now();
-    
+
     // Clean up old entries (older than windowMs)
     if (requestCounts.has(clientId)) {
       const { count, resetTime } = requestCounts.get(clientId);
@@ -31,7 +31,7 @@ export const rateLimiter = (options = {}) => {
         requestCounts.set(clientId, { count: 1, resetTime: now + windowMs });
         return next();
       }
-      
+
       // Check if limit exceeded
       if (count >= maxRequests) {
         Logger.warn(`Rate limit exceeded for ${clientId}`, {
@@ -40,21 +40,21 @@ export const rateLimiter = (options = {}) => {
           maxRequests,
           resetTime: new Date(resetTime).toISOString()
         });
-        
+
         return res.status(429).json({
           success: false,
           error: message,
           retryAfter: Math.ceil((resetTime - now) / 1000) // seconds
         });
       }
-      
+
       // Increment count
       requestCounts.set(clientId, { count: count + 1, resetTime });
     } else {
       // First request
       requestCounts.set(clientId, { count: 1, resetTime: now + windowMs });
     }
-    
+
     next();
   };
 };
@@ -65,8 +65,8 @@ export const rateLimiter = (options = {}) => {
  * In development, allows more requests for testing
  */
 export const strictRateLimit = (options = {}) => {
-  const isDevelopment = process.env.NODE_ENV !== 'production';
-  
+  const isDevelopment = process.env.NODE_ENV !== "production";
+
   const {
     windowMs = 15 * 60 * 1000, // 15 minutes
     maxRequests = isDevelopment ? 20 : 20, // Allow 20 requests per 15 minutes

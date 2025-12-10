@@ -6,8 +6,8 @@ import { fileURLToPath } from "url";
 import { testConnection, initializeDatabase } from "./config/database.js";
 import { cleanupExpiredSessions, getSessionTimeoutHours } from "./utils/auth.js";
 import { validateEnv } from "./config/env.js";
-import compression from 'compression';
-import helmet from 'helmet';
+import compression from "compression";
+import helmet from "helmet";
 
 // Import routes
 import productRoutes from "./routes/products.js";
@@ -87,7 +87,7 @@ app.use(
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) return callback(null, true);
-      
+
       // Check if origin is in allowed list
       if (allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
@@ -111,7 +111,7 @@ app.use(
 );
 
 // Trust proxy for accurate IP addresses (important for rate limiting)
-app.set('trust proxy', 1);
+app.set("trust proxy", 1);
 
 // Security: Reduce request size limits to prevent DoS
 app.use(express.json({ limit: "1mb" })); // Reduced from 10mb
@@ -122,41 +122,45 @@ import { securityHeaders } from "./middleware/securityHeaders.js";
 app.use(securityHeaders);
 
 // Compression middleware - compress responses to reduce bandwidth
-app.use(compression({
-  level: 6, // Balance between compression ratio and speed (1-9)
-  threshold: 1024, // Only compress responses larger than 1KB
-  filter: (req, res) => {
-    // Don't compress if client doesn't support it
-    if (req.headers['x-no-compression']) {
-      return false;
+app.use(
+  compression({
+    level: 6, // Balance between compression ratio and speed (1-9)
+    threshold: 1024, // Only compress responses larger than 1KB
+    filter: (req, res) => {
+      // Don't compress if client doesn't support it
+      if (req.headers["x-no-compression"]) {
+        return false;
+      }
+      return compression.filter(req, res);
     }
-    return compression.filter(req, res);
-  }
-}));
+  })
+);
 
 // Helmet.js - Set various HTTP headers for security
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"], // Allow inline styles for React
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"], // Allow images from any HTTPS source
-      connectSrc: ["'self'"],
-      fontSrc: ["'self'", "data:"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
-      frameSrc: ["'none'"],
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"], // Allow inline styles for React
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"], // Allow images from any HTTPS source
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'", "data:"],
+        objectSrc: ["'none'"],
+        mediaSrc: ["'self'"],
+        frameSrc: ["'none'"]
+      }
     },
-  },
-  hsts: {
-    maxAge: 31536000, // 1 year
-    includeSubDomains: true,
-    preload: true
-  },
-  crossOriginEmbedderPolicy: false, // Disable for API server
-  crossOriginResourcePolicy: { policy: "cross-origin" } // Allow cross-origin resources
-}));
+    hsts: {
+      maxAge: 31536000, // 1 year
+      includeSubDomains: true,
+      preload: true
+    },
+    crossOriginEmbedderPolicy: false, // Disable for API server
+    crossOriginResourcePolicy: { policy: "cross-origin" } // Allow cross-origin resources
+  })
+);
 
 // Request timeout middleware (30 seconds)
 app.use((req, res, next) => {
@@ -238,7 +242,7 @@ app.use((req, res) => {
 // Error handler
 app.use((err, req, res, next) => {
   // Use the isDevelopment variable declared above
-  
+
   // Log full error details (server-side only)
   Logger.error("Server Error:", {
     message: err.message,
@@ -246,14 +250,14 @@ app.use((err, req, res, next) => {
     path: req.path,
     method: req.method
   });
-  
+
   // Return sanitized error to client
   res.status(err.status || 500).json({
     success: false,
     message: "Internal server error",
-    ...(isDevelopment && { 
+    ...(isDevelopment && {
       error: err.message,
-      stack: err.stack 
+      stack: err.stack
     })
   });
 });
@@ -261,10 +265,10 @@ app.use((err, req, res, next) => {
 // Function to kill processes using a specific port
 async function killProcessOnPort(port) {
   try {
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
+    const { exec } = await import("child_process");
+    const { promisify } = await import("util");
     const execAsync = promisify(exec);
-    
+
     // Use PowerShell to kill processes on Windows
     const command = `powershell -Command "Get-NetTCPConnection -LocalPort ${port} -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }"`;
     await execAsync(command);
@@ -280,7 +284,7 @@ async function startServer() {
     const existingProcesses = await killProcessOnPort(port);
     if (existingProcesses) {
       // Wait a moment for port to be released
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
     // Test database connection
@@ -312,18 +316,20 @@ async function startServer() {
     });
 
     // Handle server errors (like port already in use)
-    server.on('error', async (error) => {
-      if (error.code === 'EADDRINUSE') {
+    server.on("error", async (error) => {
+      if (error.code === "EADDRINUSE") {
         Logger.error(`Port ${port} is already in use!`);
         Logger.warn("Attempting to kill existing process...");
-        
+
         const killed = await killProcessOnPort(port);
         if (killed) {
           Logger.success("Attempted to kill existing process.");
           Logger.info("Nodemon will auto-restart in a moment...");
         } else {
           Logger.warn("Could not auto-kill process. Please kill manually:");
-          Logger.info(`Get-NetTCPConnection -LocalPort ${port} | Select-Object -ExpandProperty OwningProcess | ForEach-Object { Stop-Process -Id $_ -Force }`);
+          Logger.info(
+            `Get-NetTCPConnection -LocalPort ${port} | Select-Object -ExpandProperty OwningProcess | ForEach-Object { Stop-Process -Id $_ -Force }`
+          );
           Logger.info(`Or: .\\kill-port.ps1 ${port} -Force`);
         }
         // Don't exit - let nodemon handle restart

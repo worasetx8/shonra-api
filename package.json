@@ -8,8 +8,7 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "migrate:all": "node scripts/run-all-migrations.js",
-    "init:db": "node scripts/init-db.js"
+    "setup:db": "node setup-database.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
