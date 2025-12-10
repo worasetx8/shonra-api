@@ -214,6 +214,19 @@ app.get("/api/health/db", async (req, res) => {
   }
 });
 
+// Request logging middleware (for production monitoring)
+app.use((req, res, next) => {
+  // Log API requests (skip health check and static files)
+  if (req.path !== "/health" && req.path.startsWith("/api")) {
+    const start = Date.now();
+    res.on("finish", () => {
+      const duration = Date.now() - start;
+      Logger.info(`${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`);
+    });
+  }
+  next();
+});
+
 // API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);

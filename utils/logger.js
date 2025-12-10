@@ -8,10 +8,13 @@ const isProduction = process.env.NODE_ENV === "production";
 
 class Logger {
   /**
-   * Log info messages (only in development)
+   * Log info messages (always logged, but simplified in production)
    */
   static info(...args) {
-    if (isDevelopment) {
+    if (isProduction) {
+      // In production, log simplified info messages
+      console.log("ℹ️ [INFO]", ...args);
+    } else {
       console.log(...args);
     }
   }
@@ -64,12 +67,10 @@ class Logger {
   }
 
   /**
-   * Log success messages (only in development)
+   * Log success messages (always logged)
    */
   static success(...args) {
-    if (isDevelopment) {
-      console.log("✅ [SUCCESS]", ...args);
-    }
+    console.log("✅ [SUCCESS]", ...args);
   }
 }
 
