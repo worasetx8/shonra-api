@@ -14,6 +14,18 @@ const API_URL = "https://open-api.affiliate.shopee.co.th/graphql";
 const APP_ID = process.env.SHOPEE_APP_ID;
 const APP_SECRET = process.env.SHOPEE_APP_SECRET;
 
+// Category cache to avoid repeated database queries
+let categoryCache = null;
+let categoryCacheTimestamp = null;
+const CATEGORY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Function to clear category cache (call when categories are updated)
+export function clearCategoryCache() {
+  categoryCache = null;
+  categoryCacheTimestamp = null;
+  Logger.info("[Cache] Category cache cleared");
+}
+
 // Debug environment variables on startup (only in development)
 Logger.debug("Products Route Environment:", {
   API_URL: API_URL,
@@ -208,15 +220,17 @@ router.get("/search", async (req, res) => {
 
     // Apply client-side filtering if needed
     if (data.data.productOfferV2.nodes && (commissionRate > 0 || ratingStar > 0)) {
-      Logger.debug("Applying client-side filters...");
       const filteredNodes = data.data.productOfferV2.nodes.filter((product) => {
         let passesCommissionFilter = true;
         let passesRatingFilter = true;
 
         if (commissionRate > 0) {
-          const productSellerCommissionRate = parseFloat(product.sellerCommissionRate) || 0;
+          const productCommissionRate = parseFloat(product.commissionRate) || 0;
+          // UI sends commission as whole number (e.g., 1 means 1%)
+          // Shopee API returns commission as decimal (e.g., 0.015 means 1.5%)
+          // So we need to convert UI value to decimal: 1 -> 0.01
           const filterCommissionRateDecimal = commissionRate / 100;
-          passesCommissionFilter = productSellerCommissionRate >= filterCommissionRateDecimal;
+          passesCommissionFilter = productCommissionRate >= filterCommissionRateDecimal;
         }
 
         if (ratingStar > 0) {
@@ -225,11 +239,6 @@ router.get("/search", async (req, res) => {
         }
 
         return passesCommissionFilter && passesRatingFilter;
-      });
-
-      Logger.debug("Filtered results:", {
-        originalCount: data.data.productOfferV2.nodes.length,
-        filteredCount: filteredNodes.length
       });
 
       data.data.productOfferV2.nodes = filteredNodes;
@@ -538,118 +547,120 @@ async function analyzeCategory(productName) {
   try {
     Logger.debug(`[analyzeCategory] Starting analysis for: ${productName}`);
     
-    // Get all active categories from database
-    const categoriesResult = await executeQuery(
-      "SELECT id, name FROM categories WHERE is_active = 1 ORDER BY name ASC"
-    );
-
-    if (!categoriesResult.success || !categoriesResult.data || categoriesResult.data.length === 0) {
-      Logger.warn(`[analyzeCategory] No categories available in database`);
-      return null; // No categories available
-    }
-
-    const categories = categoriesResult.data;
-    Logger.debug(`[analyzeCategory] Found ${categories.length} active categories`);
-    const productNameLower = productName.toLowerCase();
-
-    // Load keywords from database instead of hardcoding
-    const categoryKeywords = {};
-    const categoryWords = {}; // Store category words for each category
-    const categoryHighPriorityKeywords = {}; // Store high-priority keywords for each category
-    
-    // Get all keywords from database for all categories
-    const keywordsResult = await executeQuery(
-      `SELECT ck.category_id, ck.keyword, ck.is_high_priority, c.name as category_name
-       FROM category_keywords ck
-       JOIN categories c ON ck.category_id = c.id
-       WHERE c.is_active = 1
-       ORDER BY ck.category_id, ck.is_high_priority DESC, ck.keyword ASC`
-    );
-
-    // Initialize keywords arrays for each category
-    categories.forEach(cat => {
-      const catName = cat.name.toLowerCase();
-      const keywords = [];
-      
-      // Add category name itself (with higher priority)
-      keywords.push(catName);
-      
-      // Split category name into words for better matching
-      const catWords = catName.split(/[\s\-_]+/).filter(w => w.length > 1);
-      categoryWords[cat.id] = catWords; // Store for later use in scoring
-      keywords.push(...catWords);
-      
-      categoryKeywords[cat.id] = keywords;
-      categoryHighPriorityKeywords[cat.id] = [];
-    });
-
-    // Populate keywords from database
-    if (keywordsResult.success && keywordsResult.data && keywordsResult.data.length > 0) {
-      keywordsResult.data.forEach(kw => {
-        if (categoryKeywords[kw.category_id]) {
-          categoryKeywords[kw.category_id].push(kw.keyword);
-          if (kw.is_high_priority) {
-            categoryHighPriorityKeywords[kw.category_id].push(kw.keyword);
-          }
-        }
-      });
-      Logger.debug(`[analyzeCategory] Loaded ${keywordsResult.data.length} keywords from database`);
+    // Check cache first
+    const now = Date.now();
+    if (categoryCache && categoryCacheTimestamp && (now - categoryCacheTimestamp < CATEGORY_CACHE_TTL)) {
+      Logger.debug(`[analyzeCategory] Using cached data (age: ${Math.round((now - categoryCacheTimestamp) / 1000)}s)`);
     } else {
-      Logger.warn(`[analyzeCategory] No keywords found in database. Using category names only.`);
+      Logger.debug(`[analyzeCategory] Loading fresh data from database`);
+      
+      // Get all active categories from database
+      const categoriesResult = await executeQuery(
+        "SELECT id, name FROM categories WHERE is_active = 1 ORDER BY name ASC"
+      );
+
+      if (!categoriesResult.success || !categoriesResult.data || categoriesResult.data.length === 0) {
+        Logger.warn(`[analyzeCategory] No categories available in database`);
+        return null; // No categories available
+      }
+
+      const categories = categoriesResult.data;
+      
+      // Get all keywords from database for all categories
+      const keywordsResult = await executeQuery(
+        `SELECT ck.category_id, ck.keyword, ck.is_high_priority, c.name as category_name
+         FROM category_keywords ck
+         JOIN categories c ON ck.category_id = c.id
+         WHERE c.is_active = 1
+         ORDER BY ck.category_id, ck.is_high_priority DESC, ck.keyword ASC`
+      );
+
+      // Build cache structure
+      const cache = {
+        categories: [],
+        categoryKeywords: {},
+        categoryWords: {},
+        categoryHighPriorityKeywords: {}
+      };
+
+      // Initialize keywords arrays for each category
+      categories.forEach(cat => {
+        cache.categories.push(cat);
+        const catName = cat.name.toLowerCase();
+        const keywords = [catName];
+        const catWords = catName.split(/[\s\-_]+/).filter(w => w.length > 1);
+        
+        cache.categoryWords[cat.id] = catWords;
+        keywords.push(...catWords);
+        cache.categoryKeywords[cat.id] = keywords;
+        cache.categoryHighPriorityKeywords[cat.id] = [];
+      });
+
+      // Populate keywords from database
+      if (keywordsResult.success && keywordsResult.data && keywordsResult.data.length > 0) {
+        keywordsResult.data.forEach(kw => {
+          if (cache.categoryKeywords[kw.category_id]) {
+            cache.categoryKeywords[kw.category_id].push(kw.keyword);
+            if (kw.is_high_priority) {
+              cache.categoryHighPriorityKeywords[kw.category_id].push(kw.keyword);
+            }
+          }
+        });
+        Logger.debug(`[analyzeCategory] Loaded ${keywordsResult.data.length} keywords from database`);
+      } else {
+        Logger.warn(`[analyzeCategory] No keywords found in database. Using category names only.`);
+      }
+
+      // Update cache
+      categoryCache = cache;
+      categoryCacheTimestamp = now;
+      Logger.debug(`[analyzeCategory] Cache updated with ${categories.length} categories`);
     }
 
-    // Score each category based on keyword matches
+    // Use cached data for analysis
+    const productNameLower = productName.toLowerCase();
     let bestMatch = null;
     let bestScore = 0;
 
-    categories.forEach(cat => {
-      const keywords = categoryKeywords[cat.id] || [];
+    categoryCache.categories.forEach(cat => {
+      const keywords = categoryCache.categoryKeywords[cat.id] || [];
       let score = 0;
       const matchedKeywords = [];
-
-      // Get high-priority keywords for this category from database
-      const highPriorityKeywords = categoryHighPriorityKeywords[cat.id] || [];
+      const highPriorityKeywords = categoryCache.categoryHighPriorityKeywords[cat.id] || [];
 
       keywords.forEach(keyword => {
         const keywordLower = keyword.toLowerCase();
-        // Check for exact word match (better than substring match)
         const wordBoundaryRegex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
         const isExactWord = wordBoundaryRegex.test(productNameLower);
         const isSubstring = productNameLower.includes(keywordLower);
         
         if (isExactWord || isSubstring) {
-          // Check if this is a high-priority keyword
           const isHighPriority = highPriorityKeywords.some(highPriority => 
             keywordLower === highPriority.toLowerCase() || 
             keywordLower.includes(highPriority.toLowerCase()) || 
             highPriority.toLowerCase().includes(keywordLower)
           );
           
-          // Exact category name match gets highest score
           if (keyword === cat.name.toLowerCase()) {
             score += 20;
             matchedKeywords.push(keyword);
           } 
-          // Category name words get high score
-          else if (categoryWords[cat.id] && categoryWords[cat.id].includes(keyword)) {
+          else if (categoryCache.categoryWords[cat.id] && categoryCache.categoryWords[cat.id].includes(keyword)) {
             score += 15;
             matchedKeywords.push(keyword);
           }
-          // High-priority keywords get extra score (especially for Home & Living)
           else if (isHighPriority && isExactWord) {
-            score += 10; // Higher score for high-priority exact matches
+            score += 10;
             matchedKeywords.push(keyword);
           }
           else if (isHighPriority && isSubstring) {
-            score += 5; // Higher score for high-priority substring matches
+            score += 5;
             matchedKeywords.push(keyword);
           }
-          // Exact word match gets higher score than substring
           else if (isExactWord) {
             score += 5;
             matchedKeywords.push(keyword);
           }
-          // Substring match
           else {
             score += 1;
             matchedKeywords.push(keyword);
@@ -659,13 +670,13 @@ async function analyzeCategory(productName) {
 
       // Bonus: Multiple keyword matches in same category
       if (matchedKeywords.length > 1) {
-        score += matchedKeywords.length * 2; // Bonus for multiple matches
+        score += matchedKeywords.length * 2;
       }
 
       // Bonus: Longer keyword matches (more specific)
       matchedKeywords.forEach(keyword => {
         if (keyword.length > 5) {
-          score += 2; // Bonus for longer, more specific keywords
+          score += 2;
         }
       });
 
@@ -676,7 +687,6 @@ async function analyzeCategory(productName) {
     });
 
     // Lower threshold: return category if score is at least 1 (any match)
-    // This ensures more products get categorized
     if (bestScore > 0) {
       Logger.success(`[analyzeCategory] Best match: Category ID ${bestMatch} with score ${bestScore}`);
       return bestMatch;

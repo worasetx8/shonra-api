@@ -7,6 +7,7 @@ import Logger from "../utils/logger.js";
 import { handleErrorWithFormat } from "../utils/errorHandler.js";
 import { rateLimiter } from "../middleware/rateLimiter.js";
 import { validateRequest } from "../middleware/requestValidator.js";
+import { clearCategoryCache } from "./products.js";
 
 const router = express.Router();
 
@@ -94,6 +95,7 @@ router.post("/", requireAuth, async (req, res) => {
     );
 
     if (result.success) {
+      clearCategoryCache();
       res.status(201).json(formatResponse(true, { id: result.data.insertId, name, is_active: 1 }, "Category created successfully"));
     } else {
       if (result.error && result.error.includes("Duplicate entry")) {
@@ -127,6 +129,7 @@ router.put("/:id", requireAuth, async (req, res) => {
     );
 
     if (result.success) {
+      clearCategoryCache();
       res.json(formatResponse(true, { id, name }, "Category updated successfully"));
     } else {
       if (result.error && result.error.includes("Duplicate entry")) {
@@ -174,8 +177,7 @@ router.patch("/:id/status", requireAuth, async (req, res) => {
       [is_active ? 1 : 0, id]
     );
 
-    if (result.success) {
-      res.json(formatResponse(true, { id, is_active }, "Category status updated successfully"));
+    if (result.success) {      clearCategoryCache();      res.json(formatResponse(true, { id, is_active }, "Category status updated successfully"));
     } else {
       throw new Error(result.error);
     }
@@ -208,6 +210,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
     );
 
     if (result.success) {
+      clearCategoryCache();
       res.json(formatResponse(true, null, "Category deleted successfully"));
     } else {
       throw new Error(result.error);
